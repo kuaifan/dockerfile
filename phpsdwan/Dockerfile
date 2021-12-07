@@ -23,7 +23,10 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
-        cron
+        dnsmasq \
+        cron \
+        ncat \
+        libyaml-dev
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath
@@ -45,6 +48,9 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
 
 RUN rm -r /var/lib/apt/lists/*
 
+RUN pecl install yaml \
+        && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/ext-yaml.ini
+
 WORKDIR /var/www
 
-# docker buildx build --platform linux/arm64,linux/amd64 -t kuaifan/phpswoole:8.0 . --push
+# docker buildx build --platform linux/arm64,linux/amd64 -t kuaifan/phpsdwan:8.0 . --push
