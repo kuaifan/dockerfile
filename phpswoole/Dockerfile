@@ -33,12 +33,6 @@ RUN mkdir -p /usr/src/php/ext/redis \
         && echo 'redis' >> /usr/src/php-available-exts \
         && docker-php-ext-install redis
 
-RUN echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list \
-        && echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu trusty main" >> /etc/apt/sources.list \
-        && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 \
-        && apt-get update \
-        && apt-get install -y wireguard openresolv ansible openssh-client
-
 RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && crontab /tmp/crontab \
         && rm -rf /tmp/crontab
