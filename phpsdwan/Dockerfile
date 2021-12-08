@@ -26,7 +26,10 @@ RUN apt-get update \
         dnsmasq \
         cron \
         ncat \
-        libyaml-dev
+        libyaml-dev \
+        wireguard \
+        openresolv \
+        openssh-client
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath
@@ -35,12 +38,6 @@ RUN mkdir -p /usr/src/php/ext/redis \
         && curl -L https://github.com/phpredis/phpredis/archive/5.3.2.tar.gz | tar xvz -C /usr/src/php/ext/redis --strip 1 \
         && echo 'redis' >> /usr/src/php-available-exts \
         && docker-php-ext-install redis
-
-RUN echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list \
-        && echo "deb http://ppa.launchpad.net/ansible/ansible/ubuntu trusty main" >> /etc/apt/sources.list \
-        && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 \
-        && apt-get update \
-        && apt-get install -y wireguard openresolv ansible openssh-client
 
 RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && crontab /tmp/crontab \
