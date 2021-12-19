@@ -21,5 +21,3 @@ WORKDIR /home/node/apidoc
 RUN npm install --only=prod -g apidoc
 
 ENTRYPOINT ["apidoc"]
-
-# docker buildx build --platform linux/arm64,linux/amd64 -t kuaifan/apidoc:latest . --push

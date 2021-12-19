@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM phpswoole/swoole:php8.0
+FROM phpswoole/swoole:php8.0
 
 # Installation dependencies and PHP core extensions
 RUN apt-get update \
@@ -49,5 +49,3 @@ RUN pecl install yaml \
         && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/ext-yaml.ini
 
 WORKDIR /var/www
-
-# docker buildx build --platform linux/arm64,linux/amd64 -t kuaifan/phpsdwan:8.0 . --push
