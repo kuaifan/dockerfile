@@ -23,10 +23,11 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
-        cron
+        cron \ 
+        libgmp-dev
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath
+        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp
 
 RUN mkdir -p /usr/src/php/ext/redis \
         && curl -L https://github.com/phpredis/phpredis/archive/5.3.2.tar.gz | tar xvz -C /usr/src/php/ext/redis --strip 1 \
