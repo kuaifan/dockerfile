@@ -41,6 +41,7 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
 RUN rm -r /var/lib/apt/lists/*
 
 COPY ./phpswoole/8.0.sh /8.0.sh
+RUN chmod +x /8.0.sh
 
 ENTRYPOINT ["/8.0.sh"]
 
