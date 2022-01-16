@@ -23,7 +23,7 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
-        cron \ 
+        cron \
         libgmp-dev
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -39,5 +39,9 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && rm -rf /tmp/crontab
 
 RUN rm -r /var/lib/apt/lists/*
+
+COPY ./phpswoole/8.0.sh /8.0.sh
+
+ENTRYPOINT ["/8.0.sh"]
 
 WORKDIR /var/www
