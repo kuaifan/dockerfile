@@ -23,7 +23,7 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
-        cron \ 
+        cron \
         libgmp-dev
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
