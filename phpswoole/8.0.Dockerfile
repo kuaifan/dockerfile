@@ -40,4 +40,12 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
 
 RUN rm -r /var/lib/apt/lists/*
 
-WORKDIR /var/www
+RUN rm -f /etc/supervisor/service.d/swoole.conf
+
+COPY ./phpswoole/8.0.sh /8.0.sh
+RUN chmod +x /8.0.sh
+
+ENTRYPOINT ["/8.0.sh"]
+CMD []
+
+WORKDIR "/var/www/"
