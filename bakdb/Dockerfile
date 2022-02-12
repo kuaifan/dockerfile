@@ -1,6 +1,4 @@
-FROM nginx:1.21.4-alpine
-
-RUN apk add --update --no-cache bash
+FROM debian:buster
 
 COPY ./bakdb/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
