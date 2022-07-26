@@ -43,9 +43,17 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && crontab /tmp/crontab \
         && rm -rf /tmp/crontab
 
-RUN rm -r /var/lib/apt/lists/*
-
 RUN pecl install yaml \
         && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/ext-yaml.ini
+
+RUN rm -r /var/lib/apt/lists/*
+
+RUN rm -f /etc/supervisor/service.d/swoole.conf
+
+COPY ./phpswoole/8.0.sh /8.0.sh
+RUN chmod +x /8.0.sh
+
+ENTRYPOINT ["/8.0.sh"]
+CMD []
 
 WORKDIR /var/www
