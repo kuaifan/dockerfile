@@ -23,6 +23,7 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
+        ssh \
         cron \
         libgmp-dev
 
