@@ -25,7 +25,8 @@ RUN apt-get update \
         sshpass \
         ssh \
         cron \
-        libgmp-dev
+        libgmp-dev \
+        openvpn
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp
