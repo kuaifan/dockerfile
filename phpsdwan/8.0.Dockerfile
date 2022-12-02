@@ -29,7 +29,9 @@ RUN apt-get update \
         libyaml-dev \
         wireguard \
         openresolv \
-        openssh-client
+        openssh-client \
+        openvpn \
+        expect
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath
