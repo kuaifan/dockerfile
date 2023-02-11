@@ -144,11 +144,6 @@ jobs:
   phpsdwan:
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'kuaifan/dockerfile' }}
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [ "8.0" ]
-
     steps:
       -
         name: Checkout
@@ -172,31 +167,26 @@ jobs:
       -
         name: Set full names of the Docker image
         id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/php:sdwan-${{ matrix.php }}"
+        run: echo "::set-output name=full_names::kuaifan/php:sdwan-8.0.rc1"
 
       -
-        name: Build and push Docker image kuaifan/php:sdwan-${{ matrix.php }}
+        name: Build and push Docker image kuaifan/php:sdwan
         id: docker_build
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: phpsdwan/${{ matrix.php }}.Dockerfile
+          file: phpsdwan/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.set_full_names.outputs.full_names }}
 
       -
-        name: Image digest of kuaifan/php:sdwan-${{ matrix.php }}
+        name: Image digest of kuaifan/php:sdwan
         run: echo ${{ steps.docker_build.outputs.digest }}
 
   phpswoole:
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'kuaifan/dockerfile' }}
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [ "8.0" ]
-
     steps:
       -
         name: Checkout
@@ -220,19 +210,19 @@ jobs:
       -
         name: Set full names of the Docker image
         id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/php:swoole-${{ matrix.php }}"
+        run: echo "::set-output name=full_names::kuaifan/php:swoole-8.0.rc1"
 
       -
-        name: Build and push Docker image kuaifan/php:swoole-${{ matrix.php }}
+        name: Build and push Docker image kuaifan/php:swoole
         id: docker_build
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: phpswoole/${{ matrix.php }}.Dockerfile
+          file: phpswoole/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.set_full_names.outputs.full_names }}
 
       -
-        name: Image digest of kuaifan/php:swoole-${{ matrix.php }}
+        name: Image digest of kuaifan/php:swoole
         run: echo ${{ steps.docker_build.outputs.digest }}

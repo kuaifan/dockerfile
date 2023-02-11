@@ -6,6 +6,7 @@ RUN apt-get update \
         libpng-dev \
         libzip-dev \
         libzip4 \
+        libldap2-dev \
         zip \
         unzip \
         git \
@@ -23,14 +24,18 @@ RUN apt-get update \
         libfreetype6-dev \
         inotify-tools \
         sshpass \
-        ssh \
+        dnsmasq \
         cron \
-        libgmp-dev \
+        ncat \
+        libyaml-dev \
+        wireguard \
+        openresolv \
+        openssh-client \
         openvpn \
         expect
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp
+        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath ldap
 
 RUN mkdir -p /usr/src/php/ext/redis \
         && curl -L https://github.com/phpredis/phpredis/archive/5.3.2.tar.gz | tar xvz -C /usr/src/php/ext/redis --strip 1 \
@@ -41,14 +46,17 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && crontab /tmp/crontab \
         && rm -rf /tmp/crontab
 
+RUN pecl install yaml \
+        && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/ext-yaml.ini
+
 RUN rm -r /var/lib/apt/lists/*
 
 RUN rm -f /etc/supervisor/service.d/swoole.conf
 
-COPY ./phpswoole/8.0.sh /8.0.sh
-RUN chmod +x /8.0.sh
+COPY ./phpswoole/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/8.0.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 CMD []
 
-WORKDIR "/var/www/"
+WORKDIR /var/www
