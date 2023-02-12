@@ -31,11 +31,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       -
-        name: Set full names of the Docker image
-        id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/apidoc"
-
-      -
         name: Build and push Docker image kuaifan/apidoc
         id: docker_build
         uses: docker/build-push-action@v2
@@ -44,7 +39,7 @@ jobs:
           file: apidoc/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.set_full_names.outputs.full_names }}
+          tags: kuaifan/apidoc
 
       -
         name: Image digest of kuaifan/apidoc
@@ -74,11 +69,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       -
-        name: Set full names of the Docker image
-        id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/bakdb"
-
-      -
         name: Build and push Docker image kuaifan/bakdb
         id: docker_build
         uses: docker/build-push-action@v2
@@ -87,7 +77,7 @@ jobs:
           file: bakdb/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.set_full_names.outputs.full_names }}
+          tags: kuaifan/bakdb
 
       -
         name: Image digest of kuaifan/bakdb
@@ -96,11 +86,6 @@ jobs:
   compose:
     runs-on: ubuntu-latest
     if: ${{ github.repository == 'kuaifan/dockerfile' }}
-    strategy:
-      fail-fast: true
-      matrix:
-        compose: [ "install" ]
-
     steps:
       -
         name: Checkout
@@ -122,23 +107,18 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       -
-        name: Set full names of the Docker image
-        id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/compose:${{ matrix.compose }}"
-
-      -
-        name: Build and push Docker image kuaifan/compose:${{ matrix.compose }}
+        name: Build and push Docker image kuaifan/compose
         id: docker_build
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: compose/${{ matrix.compose }}.Dockerfile
+          file: compose/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.set_full_names.outputs.full_names }}
+          tags: kuaifan/compose:install
 
       -
-        name: Image digest of kuaifan/compose:${{ matrix.compose }}
+        name: Image digest of kuaifan/compose
         run: echo ${{ steps.docker_build.outputs.digest }}
 
   phpsdwan:
@@ -165,11 +145,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       -
-        name: Set full names of the Docker image
-        id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/php:sdwan-8.0.rc1"
-
-      -
         name: Build and push Docker image kuaifan/php:sdwan
         id: docker_build
         uses: docker/build-push-action@v2
@@ -178,7 +153,7 @@ jobs:
           file: phpsdwan/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.set_full_names.outputs.full_names }}
+          tags: kuaifan/php:sdwan-8.0.rc1
 
       -
         name: Image digest of kuaifan/php:sdwan
@@ -208,11 +183,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       -
-        name: Set full names of the Docker image
-        id: set_full_names
-        run: echo "::set-output name=full_names::kuaifan/php:swoole-8.0.rc1"
-
-      -
         name: Build and push Docker image kuaifan/php:swoole
         id: docker_build
         uses: docker/build-push-action@v2
@@ -221,7 +191,7 @@ jobs:
           file: phpswoole/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.set_full_names.outputs.full_names }}
+          tags: kuaifan/php:swoole-8.0.rc1
 
       -
         name: Image digest of kuaifan/php:swoole

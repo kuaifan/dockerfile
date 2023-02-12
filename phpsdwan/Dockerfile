@@ -1,4 +1,4 @@
-FROM phpswoole/swoole:php8.0
+FROM phpswoole/swoole:5.0-php8.0
 
 # Installation dependencies and PHP core extensions
 RUN apt-get update \
@@ -53,10 +53,10 @@ RUN rm -r /var/lib/apt/lists/*
 
 RUN rm -f /etc/supervisor/service.d/swoole.conf
 
-COPY ./phpswoole/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY ./phpswoole/start.sh /start.sh
+RUN chmod +x /start.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/start.sh"]
 CMD []
 
 WORKDIR /var/www

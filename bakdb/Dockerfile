@@ -1,6 +1,6 @@
 FROM debian:buster
 
-COPY ./bakdb/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY ./bakdb/start.sh /start.sh
+RUN chmod +x /start.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/start.sh"]
