@@ -7,6 +7,7 @@ RUN apt-get update \
         libzip-dev \
         libzip4 \
         libldap2-dev \
+        libffi-dev \
         zip \
         unzip \
         git \
@@ -31,7 +32,7 @@ RUN apt-get update \
         expect
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp ldap exif
+        && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp ldap exif ffi
 
 RUN mkdir -p /usr/src/php/ext/redis \
         && curl -L https://github.com/phpredis/phpredis/archive/5.3.2.tar.gz | tar xvz -C /usr/src/php/ext/redis --strip 1 \
