@@ -1,0 +1,3 @@
+[submodule "dooso"]
+	path = dooso
+	url = git@github.com:kuaifan/dooso.git

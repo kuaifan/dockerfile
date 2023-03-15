@@ -1,3 +1,10 @@
+FROM golang:1.20.2 AS dooso
+
+WORKDIR /go/src/dooso
+COPY ./dooso ./
+RUN go build -buildmode=c-shared -o lib/doo.so main.go
+
+
 FROM phpswoole/swoole:5.0-php8.0
 
 # Installation dependencies and PHP core extensions
@@ -46,6 +53,9 @@ RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
 RUN rm -r /var/lib/apt/lists/*
 
 RUN rm -f /etc/supervisor/service.d/swoole.conf
+
+RUN mkdir /usr/lib/doo
+COPY --from=dooso /go/src/dooso/lib /usr/lib/doo
 
 COPY ./phpswoole/start.sh /start.sh
 RUN chmod +x /start.sh
