@@ -1,7 +1,7 @@
 FROM golang:1.20.2 AS dooso
 
 WORKDIR /go/src/dooso
-COPY ./dooso ./
+COPY ./resources/dooso ./
 RUN go build -buildmode=c-shared -o lib/doo.so main.go
 
 

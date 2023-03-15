@@ -42,7 +42,7 @@ jobs:
           file: phpswoole/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: kuaifan/php:swoole-8.0.rc3
+          tags: kuaifan/php:swoole-8.0.rc4
 
       -
         name: Image digest of kuaifan/php:swoole
