@@ -129,7 +129,8 @@ jobs:
         name: Checkout
         uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: true
+          remote: true
           token: ${{ secrets.PERSONAL_TOKEN }}
 
       -
@@ -170,7 +171,8 @@ jobs:
         name: Checkout
         uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: true
+          remote: true
           token: ${{ secrets.PERSONAL_TOKEN }}
 
       -
