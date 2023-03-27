@@ -5,7 +5,7 @@ COPY ./resources/dooso ./
 RUN go build -buildmode=c-shared -o lib/doo.so main.go
 
 
-FROM phpswoole/swoole:5.0-php8.0
+FROM phpswoole/swoole:php8.0
 
 # Installation dependencies and PHP core extensions
 RUN apt-get update \

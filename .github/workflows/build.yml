@@ -156,7 +156,7 @@ jobs:
           file: phpsdwan/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: kuaifan/php:sdwan-8.0.rc7
+          tags: kuaifan/php:sdwan-8.0.rc8
 
       -
         name: Image digest of kuaifan/php:sdwan
@@ -197,7 +197,7 @@ jobs:
           file: phpswoole/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: kuaifan/php:swoole-8.0.rc7
+          tags: kuaifan/php:swoole-8.0.rc8
 
       -
         name: Image digest of kuaifan/php:swoole
