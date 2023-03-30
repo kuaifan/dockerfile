@@ -40,11 +40,7 @@ RUN apt-get update \
         openresolv \
         openssh-client \
         openvpn \
-        expect \
-        libgpgme11-dev
-
-RUN pecl install gnupg \
-        && docker-php-ext-enable gnupg
+        expect
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath ldap exif ffi

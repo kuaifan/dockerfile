@@ -36,11 +36,7 @@ RUN apt-get update \
         cron \
         libgmp-dev \
         openvpn \
-        expect \
-        libgpgme11-dev
-
-RUN pecl install gnupg \
-        && docker-php-ext-enable gnupg
+        expect
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp ldap exif ffi
