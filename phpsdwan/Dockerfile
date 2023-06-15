@@ -36,11 +36,15 @@ RUN apt-get update \
         cron \
         ncat \
         libyaml-dev \
+        libmagickwand-dev \
         wireguard \
         openresolv \
         openssh-client \
         openvpn \
         expect
+
+RUN pecl install imagick \
+        && docker-php-ext-enable imagick
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath ldap exif ffi
