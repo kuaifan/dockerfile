@@ -2,7 +2,8 @@ FROM golang:1.20.2 AS dooso
 
 WORKDIR /go/src/dooso
 COPY ./resources/dooso ./
-RUN go build -buildmode=c-shared -o lib/doo.so main.go
+RUN go build -buildmode=c-shared -o lib/doo.so main.go \
+    && go build -trimpath -ldflags "-s -w" -o lib/doo_cli cli/main.go
 
 
 FROM phpswoole/swoole:php8.0
