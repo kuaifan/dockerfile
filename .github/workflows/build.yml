@@ -145,6 +145,11 @@ jobs:
           submodules: true
           token: ${{ secrets.PERSONAL_TOKEN }}
 
+      - name: Update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote --recursive
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -188,6 +193,11 @@ jobs:
           submodules: true
           token: ${{ secrets.PERSONAL_TOKEN }}
 
+      - name: Update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote --recursive
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -230,6 +240,11 @@ jobs:
         with:
           submodules: true
           token: ${{ secrets.PERSONAL_TOKEN }}
+
+      - name: Update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote --recursive
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
