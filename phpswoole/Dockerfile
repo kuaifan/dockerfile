@@ -1,7 +1,7 @@
 FROM golang:1.20.2 AS dooso
 
 WORKDIR /go/src/dooso
-COPY ./resources/dooso ./
+COPY ../resources/dooso ./
 RUN go build -buildmode=c-shared -o lib/doo.so main.go
 
 
@@ -61,7 +61,7 @@ RUN rm -f /etc/supervisor/service.d/swoole.conf
 RUN mkdir /usr/lib/doo
 COPY --from=dooso /go/src/dooso/lib /usr/lib/doo
 
-COPY ./phpswoole/start.sh /start.sh
+COPY ./start.sh /start.sh
 RUN chmod +x /start.sh
 
 ENTRYPOINT ["/start.sh"]
