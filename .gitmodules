@@ -1,7 +1,0 @@
-[submodule "resources/dooso"]
-	path = resources/dooso
-	url = git@github.com:kuaifan/dooso.git
-
-[submodule "resources/doocli"]
-	path = resources/doocli
-	url = https://github.com/kuaifan/doocli.git
