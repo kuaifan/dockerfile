@@ -1,8 +1,9 @@
 FROM golang:1.20.2 AS dooso
 
-WORKDIR /go/src/dooso
-COPY ../resources/dooso ./
-RUN go build -buildmode=c-shared -o lib/doo.so main.go
+WORKDIR /go/src
+RUN git clone git@github.com:kuaifan/dooso.git && \
+    cd dooso && \
+    go build -buildmode=c-shared -o lib/doo.so main.go
 
 
 FROM phpswoole/swoole:php8.0
