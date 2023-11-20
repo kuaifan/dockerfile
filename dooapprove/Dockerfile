@@ -11,6 +11,7 @@ RUN mkdir /var/doo  git
 COPY --from=dooapprove /go/src/task-flow/lib /var/doo
 COPY --from=dooapprove /go/src/task-flow/config.json /var/doo
 COPY --from=dooapprove /go/src/task-flow/workflow-vue3/dist/ /var/doo/dist
+COPY --from=dooapprove /go/src/task-flow/workflow-engine/model/seeders /var/doo/workflow-engine/model/seeders
 COPY --from=dooapprove /go/src/task-flow/docker/nginx/default.conf /etc/nginx/conf.d/
 
 WORKDIR "/var/doo"
