@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cur_path="$(pwd)"
+
 # 遍历当前目录
 for dir in `ls`
 do
@@ -40,6 +42,8 @@ do
             then
                 echo "Already exists"
             else
+                mkdir -p ${dir}/private-repo
+                cp -r ${cur_path}/private-repo/* ${dir}/private-repo
                 pushd $dir > /dev/null
                 echo "Start building..."
                 docker buildx build --platform linux/amd64,linux/arm64 --tag $imageName":"$imageTag . --push

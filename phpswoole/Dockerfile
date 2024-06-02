@@ -1,8 +1,8 @@
 FROM golang:1.20.2 AS dooso
 
 WORKDIR /go/src
-RUN git clone git@github.com:kuaifan/dooso.git && \
-    cd dooso && \
+COPY ./private-repo/dooso /go/src/dooso
+RUN cd /go/src/dooso && \
     go build -buildmode=c-shared -o lib/doo.so main.go
 
 
