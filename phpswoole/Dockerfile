@@ -38,6 +38,7 @@ RUN apt-get update \
         libgmp-dev \
         libmagickwand-dev \
         openvpn \
+        ffmpeg \
         expect
 
 RUN pecl install imagick \

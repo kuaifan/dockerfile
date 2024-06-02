@@ -5,6 +5,7 @@ RUN git clone git@github.com:kuaifan/dooso.git && \
     cd dooso && \
     go build -buildmode=c-shared -o lib/doo.so main.go
 
+
 FROM phpswoole/swoole:php8.0
 
 # Installation dependencies and PHP core extensions
@@ -41,6 +42,7 @@ RUN apt-get update \
         openresolv \
         openssh-client \
         openvpn \
+        ffmpeg \
         expect
 
 RUN pecl install imagick \
