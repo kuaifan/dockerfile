@@ -21,6 +21,4 @@ COPY --from=cosslan-tool /go/src/cosslan-tool/lib /var/cosslan-tool
 COPY ./start.sh /start.sh
 RUN chmod +x /start.sh
 
-ENTRYPOINT ["/start.sh"]
-
 WORKDIR "/var"

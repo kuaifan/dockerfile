@@ -15,6 +15,7 @@ do
         then
             imageName="kuaifan/"$dir
             imageTag="latest"
+            imageForce="no"
             # 判断是否存在config文件
             if [ -f $configFile ]
             then
@@ -33,11 +34,26 @@ do
                         imageTag=${line#*=}
                         continue
                     fi
+                    # 判断是否强制推送
+                    if [[ $line =~ "imageForce" ]]
+                    then
+                        imageForce=${line#*=}
+                        continue
+                    fi
                 done < $configFile
             fi
+
             echo "-------------------"
             echo $imageName":"$imageTag
-            response=$(curl -s -o /dev/null -w "%{http_code}" -X GET -u $DOCKERHUB_USERNAME:$DOCKERHUB_TOKEN "https://hub.docker.com/v2/repositories/$imageName/tags/$imageTag")
+
+            if [ $imageForce == 'yes' ]
+            then
+                echo "Force push"
+                response=404
+            else
+                response=$(curl -s -o /dev/null -w "%{http_code}" -X GET -u $DOCKERHUB_USERNAME:$DOCKERHUB_TOKEN "https://hub.docker.com/v2/repositories/$imageName/tags/$imageTag")
+            fi
+            
             if [ $response == 200 ]
             then
                 echo "Already exists"
