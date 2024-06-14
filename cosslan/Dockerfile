@@ -1,16 +1,17 @@
-FROM golang:1.20.2 AS cosslan-client
+FROM golang:1.22 AS cosslan-client
 
 WORKDIR /go/src
-RUN git clone https://github.com/cossteam/cosslan-client.git && \
-    cd cosslan-client && \
+COPY ./private-repo/cosslan-client /go/src/cosslan-client
+RUN cd cosslan-client && \
     env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lib/client_cli main.go
 
-FROM golang:1.20.2 AS cosslan-tool
+FROM golang:1.22 AS cosslan-tool
 
 WORKDIR /go/src
-RUN git clone https://github.com/cossteam/cosslan-tool.git && \
-    cd cosslan-tool && \
+COPY ./private-repo/cosslan-tool /go/src/cosslan-tool
+RUN cd cosslan-tool && \
     env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lib/tool_cli main.go
+
 
 FROM alpine:latest
 
@@ -22,4 +23,4 @@ RUN chmod +x /start.sh
 
 ENTRYPOINT ["/start.sh"]
 
-WORKDIR "/var/doo"
+WORKDIR "/var"
