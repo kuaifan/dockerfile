@@ -15,10 +15,12 @@ RUN cd cosslan-tool && \
 
 FROM alpine:latest
 
-RUN mkdir /var/cosslan-client && mkdir /var/cosslan-tool 
+RUN mkdir -p /var/cosslan-client/cosslan-tool
 COPY --from=cosslan-client /go/src/cosslan-client/lib /var/cosslan-client
-COPY --from=cosslan-tool /go/src/cosslan-tool/lib /var/cosslan-tool
-COPY ./start.sh /start.sh
-RUN chmod +x /start.sh
+COPY --from=cosslan-tool /go/src/cosslan-tool/lib /var/cosslan-client/cosslan-tool
+COPY ./start.sh /var/cosslan-client/start.sh
+RUN chmod +x /var/cosslan-client/start.sh
+
+ENTRYPOINT ["/var/cosslan-client/start.sh"]
 
 WORKDIR "/var"
