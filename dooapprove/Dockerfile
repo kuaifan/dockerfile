@@ -1,7 +1,7 @@
 FROM golang:1.20.2 AS dooapprove
 
 WORKDIR /go/src
-RUN git clone https://github.com/innet8/task-flow.git && \
+RUN git clone https://github.com/hitosea/dootask-flow.git && \
     cd task-flow && \
     env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lib/doo_approve main.go
 
