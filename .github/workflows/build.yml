@@ -32,9 +32,10 @@ jobs:
           echo "$SSH_CONFIG" > ~/.ssh/config
           mkdir -p private-repo
           cd private-repo
-          git clone git@github.com:kuaifan/dooso.git
-          git clone git@github.com:cossteam/cosslan-tool.git
-          git clone git@github.com:cossteam/cosslan-client.git
+          git clone --depth=1 git@github.com:kuaifan/dooso.git
+          git clone --depth=1 git@github.com:kuaifan/doocli.git
+          git clone --depth=1 git@github.com:cossteam/cosslan-tool.git
+          git clone --depth=1 git@github.com:cossteam/cosslan-client.git
 
       - name: Update submodules
         run: |

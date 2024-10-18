@@ -1,8 +1,8 @@
 FROM golang:1.20.2 AS doocli
 
 WORKDIR /go/src
-RUN git clone https://github.com/kuaifan/doocli.git && \
-    cd doocli && \
+COPY ./private-repo/doocli /go/src/doocli
+RUN cd doocli && \
     env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o lib/doo_cli main.go
 
 
