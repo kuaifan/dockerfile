@@ -56,7 +56,10 @@ RUN mkdir -p /usr/src/php/ext/redis \
         && echo 'redis' >> /usr/src/php-available-exts \
         && docker-php-ext-install redis
 
-RUN curl -L https://pngquant.org/pngquant-linux.tar.bz2 | tar xvj -C /usr/local/bin --strip 1
+RUN mkdir /tmp/pngquant_temp \
+        && curl -L https://pngquant.org/pngquant-linux.tar.bz2 | tar -xvj -C /tmp/pngquant_temp \
+        && mv /tmp/pngquant_temp/pngquant /usr/local/bin \
+        && rm -r /tmp/pngquant_temp
 
 RUN echo "* * * * * sh /var/www/docker/crontab/crontab.sh" > /tmp/crontab \
         && crontab /tmp/crontab \
