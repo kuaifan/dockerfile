@@ -48,12 +48,12 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         && docker-php-ext-install pdo_mysql gd pcntl zip bcmath gmp ldap exif ffi
 
 RUN mkdir -p /usr/src/php/ext/redis \
-        && curl -L https://github.com/phpredis/phpredis/archive/5.3.2.tar.gz | tar xvz -C /usr/src/php/ext/redis --strip 1 \
+        && tar xvz -C /usr/src/php/ext/redis --strip 1 -f ./plugins/phpredis-5.3.2.tar.gz \
         && echo 'redis' >> /usr/src/php-available-exts \
         && docker-php-ext-install redis
 
 RUN mkdir /tmp/pngquant_temp \
-        && curl -L https://pngquant.org/pngquant-linux.tar.bz2 | tar -xvj -C /tmp/pngquant_temp \
+        && tar -xvj -C /tmp/pngquant_temp -f ./plugins/pngquant-linux.tar.bz2 \
         && mv /tmp/pngquant_temp/pngquant /usr/local/bin \
         && rm -r /tmp/pngquant_temp
 
