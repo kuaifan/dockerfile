@@ -1,5 +1,5 @@
 #!/bin/bash
 
-service supervisor satrt &> /dev/null
+service supervisor start &> /dev/null
 
 /entrypoint.sh
