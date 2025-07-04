@@ -71,10 +71,7 @@ RUN rm -f /etc/supervisor/service.d/swoole.conf
 RUN mkdir /usr/lib/doo
 COPY --from=dooso /go/src/dooso/lib /usr/lib/doo
 
-COPY ./start.sh /start.sh
-RUN chmod +x /start.sh
-
-ENTRYPOINT ["/start.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 CMD []
 
 WORKDIR "/var/www/"
