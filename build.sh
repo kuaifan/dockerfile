@@ -51,7 +51,7 @@ do
                 echo "Force push"
                 response=404
             else
-                response=$(curl -s -o /dev/null -w "%{http_code}" -X GET -u $DOCKERHUB_USERNAME:$DOCKERHUB_TOKEN "https://hub.docker.com/v2/repositories/$imageName/tags/$imageTag")
+                response=$(curl -s -o /dev/null -w "%{http_code}" -X GET -u $DOCKERHUB_USERNAME:$DOCKERHUB_TOKEN "https://hub.docker.com/v2/repositories/$imageName/tags/$imageTag" || echo "404")
             fi
             
             if [ $response == 200 ]
@@ -62,8 +62,13 @@ do
                 cp -r ${cur_path}/private-repo/* ${dir}/private-repo
                 pushd $dir > /dev/null
                 echo "Start building..."
-                docker buildx build --platform linux/amd64,linux/arm64 --tag $imageName":"$imageTag . --push
-                echo "Build completed"
+                if docker buildx build --platform linux/amd64,linux/arm64 --tag $imageName":"$imageTag . --push; then
+                    echo "✅ Build successfully"
+                else
+                    echo "❌ Build failed"
+                    popd > /dev/null
+                    exit 1
+                fi
                 popd > /dev/null
             fi
         fi
