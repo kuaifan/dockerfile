@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  workspace_image = "code-node:0.0.1"
+  workspace_image = "kuaifan/coder-dind:0.0.1"
 }
 
 variable "docker_socket" {
