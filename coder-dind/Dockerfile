@@ -80,3 +80,17 @@ RUN set -eux; \
 
 # 验证版本（可选，如不需要可删除下面两行）
 RUN node -v && npm -v && yarn -v && pnpm -v
+
+# Remove the `ubuntu` user and add a user `coder` so that you're not developing as the `root` user
+RUN userdel -r ubuntu && \
+    useradd coder \
+    --create-home \
+    --shell=/bin/bash \
+    --groups=docker \
+    --uid=1000 \
+    --user-group && \
+    echo "coder ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers.d/nopasswd
+
+# Switch to the `coder` user and set up their environment
+USER coder
+RUN pipx ensurepath # adds user's bin directory to PATH

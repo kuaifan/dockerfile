@@ -46,6 +46,7 @@ resource "coder_agent" "main" {
       cp -rT /etc/skel ~
       touch ~/.init_done
     fi
+    mkdir -p ~/workspaces
   EOT
   shutdown_script = <<-EOT
     set -e
@@ -135,7 +136,7 @@ module "git-clone" {
   source      = "registry.coder.com/coder/git-clone/coder"
   agent_id    = coder_agent.main.id
   url         = data.coder_parameter.repo_url.value
-  base_dir    = "/workspaces"
+  base_dir    = "/home/coder/workspaces"
   version     = "~> 1.0"
 }
 
@@ -144,14 +145,14 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = "/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
-  install_prefix  = "/var/lib/docker/.code-server"
+  folder          = "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
+  install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions      = [
     "openai.chatgpt", 
     "github.copilot-chat"
   ]
-  extensions_dir  = "/var/lib/docker/.code-extensions"
+  extensions_dir  = "/home/coder/.code-extensions"
   settings        = {
     "terminal.integrated.defaultProfile.linux" = "fish"
     "workbench.colorTheme" = "Default Dark Modern"
@@ -165,7 +166,7 @@ module "cursor" {
   source      = "registry.coder.com/coder/cursor/coder"
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
-  folder      = "/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
+  folder      = "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
 }
 
 resource "docker_volume" "home_volume" {
@@ -230,7 +231,7 @@ resource "docker_container" "workspace" {
   }
 
   volumes {
-    container_path = "/workspaces"
+    container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }
