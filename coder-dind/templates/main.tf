@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.1"
+  workspace_image = "kuaifan/coder-dind:0.0.2"
 }
 
 variable "docker_socket" {
@@ -30,37 +30,54 @@ data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "repo_url" {
   default      = ""
-  description  = "Enter the URL of the Git repository to clone into your workspace. e.g. https://github.com/coder/coder"
+  description  = "(Optional) Enter the URL of the Git repository to clone into your workspace."
   display_name = "Git Repository"
   mutable      = true
   name         = "repo_url"
   type         = "string"
+  styling = jsonencode({
+    placeholder = "https://github.com/username/repository.git"
+  })
 }
 
 data "coder_parameter" "wireguard_config" {
   default      = ""
-  description  = "WireGuard configuration content"
+  description  = "(Optional) WireGuard configuration content"
   display_name = "WireGuard Config"
   mutable      = true
   name         = "wireguard_config"
   type         = "string"
-  option {
-    name  = ""
-    value = ""
-  }
+  form_type    = "textarea"
+  styling = jsonencode({
+    placeholder = <<-EOT
+    [Interface]
+    PrivateKey = your_private_key_here
+    Address = 10.0.0.2/32
+    ...
+    [Peer]
+    PublicKey = server_public_key_here
+    Endpoint = vpn.example.com:51820
+    ...
+    EOT
+  })
 }
 
 data "coder_parameter" "wireguard_domains" {
   default      = ""
-  description  = "Domain list for WireGuard routing (one domain per line)"
+  description  = "(Optional) Domain list for WireGuard routing (one domain per line)"
   display_name = "WireGuard Domains"
   mutable      = true
   name         = "wireguard_domains"
   type         = "string"
-  option {
-    name  = ""
-    value = ""
-  }
+  form_type    = "textarea"
+  styling = jsonencode({
+    placeholder = <<-EOT
+    example.com
+    google.com
+    api.openai.com
+    ...
+    EOT
+  })
 }
 
 resource "coder_agent" "main" {
@@ -77,35 +94,48 @@ resource "coder_agent" "main" {
     sudo service docker start
 
     # Create WireGuard configuration directory
-    mkdir -p /home/coder/workspaces/.wireguard
+    mkdir -p /home/coder/.wireguard
     
     # Save WireGuard config if provided
     if [ -n "${data.coder_parameter.wireguard_config.value}" ]; then
-      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/workspaces/.wireguard/wg0.conf
-      chmod 600 /home/coder/workspaces/.wireguard/wg0.conf
+      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/.wireguard/wg0.conf
+      chmod 600 /home/coder/.wireguard/wg0.conf
       echo "WireGuard config saved"
     fi
     
     # Save WireGuard domains if provided
     if [ -n "${data.coder_parameter.wireguard_domains.value}" ]; then
-      echo "${data.coder_parameter.wireguard_domains.value}" > /home/coder/workspaces/.wireguard/domain.txt
-      chmod 644 /home/coder/workspaces/.wireguard/domain.txt
+      echo "${data.coder_parameter.wireguard_domains.value}" > /home/coder/.wireguard/domain.txt
+      chmod 644 /home/coder/.wireguard/domain.txt
       echo "WireGuard domains saved"
     fi
     
     # Then run WireGuard setup if config exists
-    if [ -f /home/coder/workspaces/.wireguard/wg0.conf ] && [ -f /home/coder/workspaces/.wireguard/domain.txt ]; then
-      echo "Starting WireGuard initialization..."
-      sudo WG_CONF="/home/coder/workspaces/.wireguard/wg0.conf" \
-           DOMAIN_FILE="/home/coder/workspaces/.wireguard/domain.txt" \
-           bash ${path.module}/scripts/init-wireguard.sh \
-           || echo "WireGuard setup failed, continuing..."
+    if [ -f /home/coder/.wireguard/wg0.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
+      echo "Starting WireGuard initialization..." \
+           | tee /home/coder/.wireguard/wg0.log
+      sudo WG_CONF="/home/coder/.wireguard/wg0.conf" \
+           DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
+           bash /usr/local/bin/wireguard-tools.sh \
+           >> /home/coder/.wireguard/wg0.log 2>&1 \
+           || (echo "WireGuard setup failed, continuing..." \
+               | tee -a /home/coder/.wireguard/wg0.log)
     fi
   EOT
   shutdown_script = <<-EOT
     set -e
     docker system prune -a -f
     sudo service docker stop
+
+    # Then run WireGuard cleanup if config exists
+    if [ -f /home/coder/.wireguard/wg0.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
+      echo "Stopping WireGuard..." \
+           | tee -a /home/coder/.wireguard/wg0.log
+      sudo WG_CONF="/home/coder/.wireguard/wg0.conf" \
+           DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
+           bash /usr/local/bin/wireguard-tools.sh down \
+           >> /home/coder/.wireguard/wg0.log 2>&1
+    fi
   EOT
 
   env = {
@@ -176,14 +206,6 @@ resource "coder_agent" "main" {
   }
 }
 
-resource "coder_script" "init_dind" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.main.id
-  display_name = "Initialize Docker-in-Docker"
-  script       = file("${path.module}/scripts/init-dind.sh")
-  run_on_start = true
-}
-
 # See https://registry.coder.com/modules/coder/git-clone
 module "git-clone" {
   count       = data.coder_parameter.repo_url.value != "" ? data.coder_workspace.me.start_count : 0
@@ -203,8 +225,9 @@ module "code-server" {
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions      = [
-    "openai.chatgpt", 
-    "github.copilot-chat"
+    "anthropic.claude-code", 
+    "github.copilot-chat",
+    "openai.chatgpt"
   ]
   extensions_dir  = "/home/coder/.code-extensions"
   settings        = {
