@@ -29,12 +29,38 @@ data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "repo_url" {
-  default      = "https://github.com/coder/coder"
-  description  = "Enter the URL of the Git repository to clone into your workspace. This repository should contain a devcontainer.json file to configure your development environment."
+  default      = ""
+  description  = "Enter the URL of the Git repository to clone into your workspace. e.g. https://github.com/coder/coder"
   display_name = "Git Repository"
   mutable      = true
   name         = "repo_url"
   type         = "string"
+}
+
+data "coder_parameter" "wireguard_config" {
+  default      = ""
+  description  = "WireGuard configuration content"
+  display_name = "WireGuard Config"
+  mutable      = true
+  name         = "wireguard_config"
+  type         = "string"
+  option {
+    name  = ""
+    value = ""
+  }
+}
+
+data "coder_parameter" "wireguard_domains" {
+  default      = ""
+  description  = "Domain list for WireGuard routing (one domain per line)"
+  display_name = "WireGuard Domains"
+  mutable      = true
+  name         = "wireguard_domains"
+  type         = "string"
+  option {
+    name  = ""
+    value = ""
+  }
 }
 
 resource "coder_agent" "main" {
@@ -42,11 +68,39 @@ resource "coder_agent" "main" {
   os              = "linux"
   startup_script  = <<-EOT
     set -e
-    if [ ! -f ~/.init_done ]; then
-      cp -rT /etc/skel ~
-      touch ~/.init_done
+    if [ ! -f /home/coder/.init_done ]; then
+      cp -rT /etc/skel /home/coder
+      touch /home/coder/.init_done
     fi
-    mkdir -p ~/workspaces
+    
+    # Start Docker first
+    sudo service docker start
+
+    # Create WireGuard configuration directory
+    mkdir -p /home/coder/workspaces/.wireguard
+    
+    # Save WireGuard config if provided
+    if [ -n "${data.coder_parameter.wireguard_config.value}" ]; then
+      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/workspaces/.wireguard/wg0.conf
+      chmod 600 /home/coder/workspaces/.wireguard/wg0.conf
+      echo "WireGuard config saved"
+    fi
+    
+    # Save WireGuard domains if provided
+    if [ -n "${data.coder_parameter.wireguard_domains.value}" ]; then
+      echo "${data.coder_parameter.wireguard_domains.value}" > /home/coder/workspaces/.wireguard/domain.txt
+      chmod 644 /home/coder/workspaces/.wireguard/domain.txt
+      echo "WireGuard domains saved"
+    fi
+    
+    # Then run WireGuard setup if config exists
+    if [ -f /home/coder/workspaces/.wireguard/wg0.conf ] && [ -f /home/coder/workspaces/.wireguard/domain.txt ]; then
+      echo "Starting WireGuard initialization..."
+      sudo WG_CONF="/home/coder/workspaces/.wireguard/wg0.conf" \
+           DOMAIN_FILE="/home/coder/workspaces/.wireguard/domain.txt" \
+           bash ${path.module}/scripts/init-wireguard.sh \
+           || echo "WireGuard setup failed, continuing..."
+    fi
   EOT
   shutdown_script = <<-EOT
     set -e
@@ -132,7 +186,7 @@ resource "coder_script" "init_dind" {
 
 # See https://registry.coder.com/modules/coder/git-clone
 module "git-clone" {
-  count       = data.coder_workspace.me.start_count
+  count       = data.coder_parameter.repo_url.value != "" ? data.coder_workspace.me.start_count : 0
   source      = "registry.coder.com/coder/git-clone/coder"
   agent_id    = coder_agent.main.id
   url         = data.coder_parameter.repo_url.value
@@ -145,7 +199,7 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
+  folder          = data.coder_parameter.repo_url.value != "" ? "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}" : "/home/coder/workspaces"
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions      = [
@@ -166,7 +220,7 @@ module "cursor" {
   source      = "registry.coder.com/coder/cursor/coder"
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
-  folder      = "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}"
+  folder      = data.coder_parameter.repo_url.value != "" ? "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}" : "/home/coder/workspaces"
 }
 
 resource "docker_volume" "home_volume" {
