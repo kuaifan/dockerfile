@@ -112,9 +112,41 @@ setup_wireguard() {
     [ -n "$PRESHARED_KEY" ] && echo "  已启用 PresharedKey"
 }
 
+# 判断是否为 IP 地址（IPv4）
+is_ip() {
+    local ip=$1
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# 判断是否为 IP 段（CIDR）
+is_cidr() {
+    local cidr=$1
+    if [[ $cidr =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
 # 配置 ipset
 setup_ipset() {
-    ipset create $IPSET_NAME hash:ip
+    # 创建 ipset，支持网段
+    ipset create $IPSET_NAME hash:net
+    
+    # 从 domain.txt 读取 IP 和 IP 段并直接添加到 ipset
+    while IFS= read -r line; do
+        # 去除空格和注释
+        line=$(echo "$line" | sed 's/#.*//' | xargs)
+        [ -z "$line" ] && continue
+        
+        # 如果是 IP 或 IP 段，直接添加到 ipset
+        if is_ip "$line" || is_cidr "$line"; then
+            ipset add $IPSET_NAME "$line" 2>/dev/null || echo "警告：无法添加 $line 到 ipset"
+            echo "已添加 IP/IP段: $line"
+        fi
+    done < "$DOMAIN_FILE"
 }
 
 # 配置 iptables
@@ -140,10 +172,18 @@ setup_dnsmasq() {
     echo "server=1.1.1.1" >> $DNSMASQ_CONF
     echo "listen-address=127.0.0.1" >> $DNSMASQ_CONF
 
-    while IFS= read -r domain; do
-        [ -z "$domain" ] && continue
-        echo "ipset=/$domain/$IPSET_NAME" >> $DNSMASQ_CONF
-    done < $DOMAIN_FILE
+    # 只处理域名，跳过 IP 和 IP 段
+    while IFS= read -r line; do
+        # 去除空格和注释
+        line=$(echo "$line" | sed 's/#.*//' | xargs)
+        [ -z "$line" ] && continue
+        
+        # 如果不是 IP 或 IP 段，则认为是域名
+        if ! is_ip "$line" && ! is_cidr "$line"; then
+            echo "ipset=/$line/$IPSET_NAME" >> $DNSMASQ_CONF
+            echo "已添加域名: $line"
+        fi
+    done < "$DOMAIN_FILE"
 
     echo "nameserver 127.0.0.1" > /etc/resolv.conf
 }
@@ -282,6 +322,19 @@ show_usage() {
     echo "环境变量:"
     echo "  WG_CONF      WireGuard 配置文件路径 (默认: /root/.wireguard/wgdind.conf)"
     echo "  DOMAIN_FILE  域名列表文件路径 (默认: /root/.wireguard/domain.txt)"
+    echo ""
+    echo "domain.txt 格式说明:"
+    echo "  支持三种格式的条目（每行一个）："
+    echo "  1. 域名: example.com"
+    echo "  2. IP 地址: 192.168.1.1"
+    echo "  3. IP 段 (CIDR): 192.168.1.0/24"
+    echo "  4. 注释: 以 # 开头的行会被忽略"
+    echo ""
+    echo "示例 domain.txt:"
+    echo "  # 这是注释"
+    echo "  google.com"
+    echo "  192.168.1.100"
+    echo "  10.0.0.0/8"
 }
 
 # 主函数

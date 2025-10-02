@@ -64,8 +64,8 @@ data "coder_parameter" "wireguard_config" {
 
 data "coder_parameter" "wireguard_domains" {
   default      = ""
-  description  = "(Optional) Domain list for WireGuard routing (one domain per line)"
-  display_name = "WireGuard Domains"
+  description  = "(Optional) Domains/IPs to route through WireGuard. Only these domains/IPs will use VPN, other traffic goes directly. One per line."
+  display_name = "WireGuard Split Tunneling"
   mutable      = true
   name         = "wireguard_domains"
   type         = "string"
@@ -75,6 +75,9 @@ data "coder_parameter" "wireguard_domains" {
     example.com
     google.com
     api.openai.com
+    192.168.1.100
+    10.0.0.0/24
+    2001:db8::1
     ...
     EOT
   })
