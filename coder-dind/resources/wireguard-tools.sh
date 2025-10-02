@@ -47,8 +47,9 @@ parse_wireguard_config() {
 setup_wireguard() {
     # 解析 WireGuard 配置
     local PRIVATE_KEY=$(parse_wireguard_config "PrivateKey")
-    local ADDRESS=$(parse_wireguard_config "Address" | cut -d'/' -f1)
+    local ADDRESS=$(parse_wireguard_config "Address")
     local PUBLIC_KEY=$(parse_wireguard_config "PublicKey")
+    local PRESHARED_KEY=$(parse_wireguard_config "PresharedKey")
     local ENDPOINT=$(parse_wireguard_config "Endpoint")
     local MTU=$(parse_wireguard_config "MTU")
     local KEEPALIVE=$(parse_wireguard_config "PersistentKeepalive")
@@ -80,10 +81,35 @@ setup_wireguard() {
 
     # 配置 WireGuard 接口
     ip link add dev $WG_INTERFACE type wireguard
-    ip address add dev $WG_INTERFACE $ADDRESS/32
+    
+    # 添加地址（支持多个地址，用逗号或空格分隔，例如: 10.8.0.2/24, fdcc:ad94:bacf:61a4::cafe:2/112）
+    echo "$ADDRESS" | tr ',' '\n' | while IFS= read -r addr; do
+        addr=$(echo "$addr" | xargs)  # 去除首尾空格
+        [ -n "$addr" ] && ip address add dev $WG_INTERFACE "$addr"
+    done
+    
+    # 设置私钥
     echo -n "$PRIVATE_KEY" | wg set $WG_INTERFACE private-key /dev/stdin
-    wg set $WG_INTERFACE peer $PUBLIC_KEY endpoint $ENDPOINT allowed-ips 0.0.0.0/0 persistent-keepalive $KEEPALIVE
+    
+    # 配置 Peer（支持 PresharedKey）
+    local WG_PEER_CMD="wg set $WG_INTERFACE peer $PUBLIC_KEY endpoint $ENDPOINT allowed-ips 0.0.0.0/0,::/0 persistent-keepalive $KEEPALIVE"
+    if [ -n "$PRESHARED_KEY" ]; then
+        # 使用临时文件传递 PresharedKey（更安全）
+        local PSK_FILE=$(mktemp)
+        echo -n "$PRESHARED_KEY" > "$PSK_FILE"
+        WG_PEER_CMD="$WG_PEER_CMD preshared-key $PSK_FILE"
+    fi
+    eval "$WG_PEER_CMD"
+    [ -n "$PRESHARED_KEY" ] && rm -f "$PSK_FILE"
+    
+    # 启动接口
     ip link set mtu $MTU up dev $WG_INTERFACE
+    
+    echo "WireGuard 接口配置完成："
+    echo "  地址: $ADDRESS"
+    echo "  MTU: $MTU"
+    echo "  Endpoint: $ENDPOINT"
+    [ -n "$PRESHARED_KEY" ] && echo "  已启用 PresharedKey"
 }
 
 # 配置 ipset
