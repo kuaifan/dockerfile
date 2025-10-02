@@ -3,11 +3,11 @@
 set -e
 
 # 配置参数 - 支持环境变量覆盖
-WG_CONF="${WG_CONF:-/root/.wireguard/wg0.conf}"
+WG_CONF="${WG_CONF:-/root/.wireguard/wgdind.conf}"
 DOMAIN_FILE="${DOMAIN_FILE:-/root/.wireguard/domain.txt}"
 DNSMASQ_CONF="/etc/dnsmasq.d/wireguard-split.conf"
 IPSET_NAME="wg_domains"
-WG_INTERFACE="wg0"
+WG_INTERFACE="wgdind"
 
 # 检查环境
 check_requirements() {
@@ -280,7 +280,7 @@ show_usage() {
     echo "  down  关闭 WireGuard 分流系统"
     echo ""
     echo "环境变量:"
-    echo "  WG_CONF      WireGuard 配置文件路径 (默认: /root/.wireguard/wg0.conf)"
+    echo "  WG_CONF      WireGuard 配置文件路径 (默认: /root/.wireguard/wgdind.conf)"
     echo "  DOMAIN_FILE  域名列表文件路径 (默认: /root/.wireguard/domain.txt)"
 }
 

@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.2"
+  workspace_image = "kuaifan/coder-dind:0.0.3"
 }
 
 variable "docker_socket" {
@@ -98,8 +98,8 @@ resource "coder_agent" "main" {
     
     # Save WireGuard config if provided
     if [ -n "${data.coder_parameter.wireguard_config.value}" ]; then
-      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/.wireguard/wg0.conf
-      chmod 600 /home/coder/.wireguard/wg0.conf
+      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/.wireguard/wgdind.conf
+      chmod 600 /home/coder/.wireguard/wgdind.conf
       echo "WireGuard config saved"
     fi
     
@@ -111,15 +111,15 @@ resource "coder_agent" "main" {
     fi
     
     # Then run WireGuard setup if config exists
-    if [ -f /home/coder/.wireguard/wg0.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
+    if [ -f /home/coder/.wireguard/wgdind.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
       echo "Starting WireGuard initialization..." \
-           | tee /home/coder/.wireguard/wg0.log
-      sudo WG_CONF="/home/coder/.wireguard/wg0.conf" \
+           | tee /home/coder/.wireguard/wgdind.log
+      sudo WG_CONF="/home/coder/.wireguard/wgdind.conf" \
            DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
            bash /usr/local/bin/wireguard-tools.sh \
-           >> /home/coder/.wireguard/wg0.log 2>&1 \
+           >> /home/coder/.wireguard/wgdind.log 2>&1 \
            || (echo "WireGuard setup failed, continuing..." \
-               | tee -a /home/coder/.wireguard/wg0.log)
+               | tee -a /home/coder/.wireguard/wgdind.log)
     fi
   EOT
   shutdown_script = <<-EOT
@@ -128,13 +128,13 @@ resource "coder_agent" "main" {
     sudo service docker stop
 
     # Then run WireGuard cleanup if config exists
-    if [ -f /home/coder/.wireguard/wg0.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
+    if [ -f /home/coder/.wireguard/wgdind.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
       echo "Stopping WireGuard..." \
-           | tee -a /home/coder/.wireguard/wg0.log
-      sudo WG_CONF="/home/coder/.wireguard/wg0.conf" \
+           | tee -a /home/coder/.wireguard/wgdind.log
+      sudo WG_CONF="/home/coder/.wireguard/wgdind.conf" \
            DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
            bash /usr/local/bin/wireguard-tools.sh down \
-           >> /home/coder/.wireguard/wg0.log 2>&1
+           >> /home/coder/.wireguard/wgdind.log 2>&1
     fi
   EOT
 
