@@ -10,7 +10,27 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.3"
+  workspace_image = "kuaifan/coder-dind:0.0.4"
+  docker_port_lines = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
+  docker_port_inputs = [for line in local.docker_port_lines : line if line != ""]
+  docker_ports = [
+    for entry in local.docker_port_inputs : trimspace(entry)
+    if length(regexall("(?i)^\\d+(?::\\d+)?(?:/(tcp|udp))?$", trimspace(entry))) > 0
+  ]
+  docker_port_entries = [
+    for entry in local.docker_ports : {
+      numbers  = regexall("\\d+", entry)
+      protocol = lower(trimspace(try(element(split("/", entry), 1), "tcp")))
+    }
+    if length(regexall("\\d+", entry)) > 0
+  ]
+  docker_port_mappings = [
+    for entry in local.docker_port_entries : {
+      external = tonumber(element(entry.numbers, 0))
+      internal = tonumber(try(element(entry.numbers, 1), element(entry.numbers, 0)))
+      protocol = contains(["tcp", "udp"], entry.protocol) ? entry.protocol : "tcp"
+    }
+  ]
 }
 
 variable "docker_socket" {
@@ -35,8 +55,30 @@ data "coder_parameter" "repo_url" {
   mutable      = true
   name         = "repo_url"
   type         = "string"
+  order        = 1
   styling = jsonencode({
     placeholder = "https://github.com/username/repository.git"
+  })
+}
+
+data "coder_parameter" "docker_ports" {
+  default      = ""
+  description  = "(Optional) List of ports to expose from the workspace container. One port or mapping per line."
+  display_name = "Docker Ports"
+  mutable      = true
+  name         = "docker_ports"
+  type         = "string"
+  form_type    = "textarea"
+  order        = 2
+  styling = jsonencode({
+    placeholder = <<-EOT
+    e.g.
+    80
+    443
+    8080:80
+    53/udp
+    10053:53/udp
+    EOT
   })
 }
 
@@ -48,8 +90,10 @@ data "coder_parameter" "wireguard_config" {
   name         = "wireguard_config"
   type         = "string"
   form_type    = "textarea"
+  order        = 3
   styling = jsonencode({
     placeholder = <<-EOT
+    e.g.
     [Interface]
     PrivateKey = your_private_key_here
     Address = 10.0.0.2/32
@@ -70,8 +114,10 @@ data "coder_parameter" "wireguard_domains" {
   name         = "wireguard_domains"
   type         = "string"
   form_type    = "textarea"
+  order        = 4
   styling = jsonencode({
     placeholder = <<-EOT
+    e.g.
     example.com
     google.com
     api.openai.com
@@ -92,7 +138,7 @@ resource "coder_agent" "main" {
       cp -rT /etc/skel /home/coder
       touch /home/coder/.init_done
     fi
-    
+
     # Start Docker first
     sudo service docker start
 
@@ -305,6 +351,15 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}"
   ]
+
+  dynamic "ports" {
+    for_each = local.docker_port_mappings
+    content {
+      internal = ports.value.internal
+      external = ports.value.external
+      protocol = ports.value.protocol
+    }
+  }
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
