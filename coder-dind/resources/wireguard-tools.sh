@@ -109,7 +109,7 @@ setup_wireguard() {
     echo "  地址: $ADDRESS"
     echo "  MTU: $MTU"
     echo "  Endpoint: $ENDPOINT"
-    [ -n "$PRESHARED_KEY" ] && echo "  已启用 PresharedKey"
+    [ -n "$PRESHARED_KEY" ] && echo "  已启用 PresharedKey" || true
 }
 
 # 判断是否为 IP 地址（IPv4）

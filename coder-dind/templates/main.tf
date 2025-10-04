@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.4"
+  workspace_image = "kuaifan/coder-dind:0.0.5"
   docker_port_lines = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
   docker_port_inputs = [for line in local.docker_port_lines : line if line != ""]
   docker_ports = [
