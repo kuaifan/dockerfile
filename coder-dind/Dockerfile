@@ -52,7 +52,6 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     wireguard-tools \
     iptables \
     ipset \
-    dnsmasq \
     dnsutils \
     iproute2 \
     iputils-ping \
@@ -102,4 +101,4 @@ RUN userdel -r ubuntu && \
 USER coder
 
 # adds user's bin directory to PATH
-RUN pipx ensurepath 
+RUN pipx ensurepath

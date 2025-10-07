@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.5"
+  workspace_image = "kuaifan/coder-dind:0.0.6"
   docker_port_lines = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
   docker_port_inputs = [for line in local.docker_port_lines : line if line != ""]
   docker_ports = [
@@ -108,7 +108,7 @@ data "coder_parameter" "wireguard_config" {
 
 data "coder_parameter" "wireguard_domains" {
   default      = ""
-  description  = "(Optional) Domains/IPs to route through WireGuard. Only these domains/IPs will use VPN, other traffic goes directly. One per line."
+  description  = "(Optional) Split-tunneling rules. One entry per line; items default to upstream (VPN) and support prefixes like direct example.com to bypass."
   display_name = "WireGuard Split Tunneling"
   mutable      = true
   name         = "wireguard_domains"
@@ -118,12 +118,12 @@ data "coder_parameter" "wireguard_domains" {
   styling = jsonencode({
     placeholder = <<-EOT
     e.g.
-    example.com
-    google.com
+    upstream example.com
+    direct example.cn
     api.openai.com
     192.168.1.100
     10.0.0.0/24
-    2001:db8::1
+    2001:db8::/32
     ...
     EOT
   })
@@ -274,7 +274,6 @@ module "code-server" {
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions      = [
-    "anthropic.claude-code", 
     "github.copilot-chat",
     "openai.chatgpt"
   ]

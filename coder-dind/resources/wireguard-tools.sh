@@ -5,9 +5,15 @@ set -e
 # 配置参数 - 支持环境变量覆盖
 WG_CONF="${WG_CONF:-/root/.wireguard/wgdind.conf}"
 DOMAIN_FILE="${DOMAIN_FILE:-/root/.wireguard/domain.txt}"
-DNSMASQ_CONF="/etc/dnsmasq.d/wireguard-split.conf"
-IPSET_NAME="wg_domains"
+IPSET_UPSTREAM_V4="wg_upstream_v4"
+IPSET_UPSTREAM_V6="wg_upstream_v6"
+IPSET_DIRECT_V4="wg_direct_v4"
+IPSET_DIRECT_V6="wg_direct_v6"
 WG_INTERFACE="wgdind"
+WG_FWMARK=100
+WG_ROUTE_TABLE=100
+IPTABLES_CHAIN="WG_SPLIT"
+IP6TABLES_CHAIN="WG_SPLIT6"
 
 # 检查环境
 check_requirements() {
@@ -18,7 +24,7 @@ check_requirements() {
     fi
 
     # 检查必要的命令
-    for cmd in wg ip iptables ipset dnsmasq; do
+    for cmd in wg ip iptables ip6tables ipset getent; do
         if ! command -v $cmd &> /dev/null; then
             echo "错误：未找到命令 $cmd，请先安装"
             exit 1
@@ -112,98 +118,210 @@ setup_wireguard() {
     [ -n "$PRESHARED_KEY" ] && echo "  已启用 PresharedKey" || true
 }
 
-# 判断是否为 IP 地址（IPv4）
-is_ip() {
+# 判断 IPv4/IPv6 与 CIDR
+is_ipv4() {
     local ip=$1
-    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        return 0
-    fi
-    return 1
+    [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
 }
 
-# 判断是否为 IP 段（CIDR）
-is_cidr() {
+is_ipv4_cidr() {
     local cidr=$1
-    if [[ $cidr =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
-        return 0
+    if [[ $cidr =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]{1,2})$ ]]; then
+        local prefix=${BASH_REMATCH[2]}
+        (( prefix >= 0 && prefix <= 32 ))
+        return
     fi
     return 1
 }
 
-# 配置 ipset
-setup_ipset() {
-    # 创建 ipset，支持网段
-    ipset create $IPSET_NAME hash:net
-    
-    # 从 domain.txt 读取 IP 和 IP 段并直接添加到 ipset
-    while IFS= read -r line; do
-        # 去除空格和注释
-        line=$(echo "$line" | sed 's/#.*//' | xargs)
-        [ -z "$line" ] && continue
-        
-        # 如果是 IP 或 IP 段，直接添加到 ipset
-        if is_ip "$line" || is_cidr "$line"; then
-            ipset add $IPSET_NAME "$line" 2>/dev/null || echo "警告：无法添加 $line 到 ipset"
-            echo "已添加 IP/IP段: $line"
+is_ipv6() {
+    local ip=$1
+    [[ $ip == *:* ]] && [[ $ip != *\ * ]] && [[ $ip != */* ]]
+}
+
+is_ipv6_cidr() {
+    local cidr=$1
+    [[ $cidr == *:* && $cidr == */* ]]
+}
+
+trim_comment_and_space() {
+    local line=$1
+    line=${line%%#*}
+    echo "$line" | xargs
+}
+
+extract_mode_and_value() {
+    local line=$1
+    local mode="upstream"
+    local value="$line"
+
+    if [[ $line =~ ^([Dd][Ii][Rr][Ee][Cc][Tt])[:[:space:]]+(.+)$ ]]; then
+        mode="direct"
+        value="${BASH_REMATCH[2]}"
+    elif [[ $line =~ ^([Uu][Pp][Ss][Tt][Rr][Ee][Aa][Mm])[:[:space:]]+(.+)$ ]]; then
+        mode="upstream"
+        value="${BASH_REMATCH[2]}"
+    fi
+
+    echo "$mode|$value"
+}
+
+add_to_ipset() {
+    local mode=$1
+    local address=$2
+    local family=$3
+    local set_name
+
+    case "$mode" in
+        direct)
+            if [ "$family" = "inet" ]; then
+                set_name=$IPSET_DIRECT_V4
+            else
+                set_name=$IPSET_DIRECT_V6
+            fi
+            ;;
+        *)
+            if [ "$family" = "inet" ]; then
+                set_name=$IPSET_UPSTREAM_V4
+            else
+                set_name=$IPSET_UPSTREAM_V6
+            fi
+            ;;
+    esac
+
+    if ! ipset add -exist "$set_name" "$address" 2>/dev/null; then
+        echo "警告：无法将 $address 添加到 ipset $set_name" >&2
+    else
+        echo "已添加 ${mode}($family): $address"
+    fi
+}
+
+resolve_domain() {
+    local domain=$1
+    local mode=$2
+    local output
+
+    if ! output=$(getent ahosts "$domain" 2>/dev/null); then
+        output=$(getent hosts "$domain" 2>/dev/null) || {
+            echo "警告：无法解析域名 $domain" >&2
+            return
+        }
+    fi
+
+    local ips
+    ips=$(echo "$output" | awk '{print $1}' | grep -v '^$' | sort -u)
+
+    if [ -z "$ips" ]; then
+        echo "警告：域名 $domain 未解析到有效 IP" >&2
+        return
+    fi
+
+    while IFS= read -r addr; do
+        if is_ipv4 "$addr"; then
+            add_to_ipset "$mode" "$addr/32" "inet"
+        elif is_ipv6 "$addr"; then
+            add_to_ipset "$mode" "$addr/128" "inet6"
+        else
+            echo "警告：忽略未知地址格式 $addr (来源 $domain)" >&2
         fi
+    done <<< "$ips"
+}
+
+setup_ipsets() {
+    ipset create -exist $IPSET_UPSTREAM_V4 hash:net family inet
+    ipset create -exist $IPSET_UPSTREAM_V6 hash:net family inet6
+    ipset create -exist $IPSET_DIRECT_V4 hash:net family inet
+    ipset create -exist $IPSET_DIRECT_V6 hash:net family inet6
+
+    ipset flush $IPSET_UPSTREAM_V4
+    ipset flush $IPSET_UPSTREAM_V6
+    ipset flush $IPSET_DIRECT_V4
+    ipset flush $IPSET_DIRECT_V6
+
+    while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+        local line
+        line=$(trim_comment_and_space "$raw_line")
+        [ -z "$line" ] && continue
+
+        local parsed mode value
+        parsed=$(extract_mode_and_value "$line")
+        mode=${parsed%%|*}
+        value=${parsed#*|}
+        value=$(echo "$value" | xargs)
+        [ -z "$value" ] && continue
+
+        if is_ipv4 "$value"; then
+            add_to_ipset "$mode" "$value/32" "inet"
+            continue
+        fi
+        if is_ipv4_cidr "$value"; then
+            add_to_ipset "$mode" "$value" "inet"
+            continue
+        fi
+        if is_ipv6 "$value"; then
+            add_to_ipset "$mode" "$value/128" "inet6"
+            continue
+        fi
+        if is_ipv6_cidr "$value"; then
+            add_to_ipset "$mode" "$value" "inet6"
+            continue
+        fi
+
+        resolve_domain "$value" "$mode"
     done < "$DOMAIN_FILE"
 }
 
-# 配置 iptables
+ensure_chain() {
+    local cmd=$1
+    local table=$2
+    local chain=$3
+
+    if ! $cmd -t "$table" -L "$chain" &>/dev/null; then
+        $cmd -t "$table" -N "$chain"
+    else
+        $cmd -t "$table" -F "$chain"
+    fi
+}
+
+ensure_jump() {
+    local cmd=$1
+    local table=$2
+    local parent=$3
+    local chain=$4
+
+    if ! $cmd -t "$table" -C "$parent" -j "$chain" &>/dev/null; then
+        $cmd -t "$table" -A "$parent" -j "$chain"
+    fi
+}
+
 setup_iptables() {
-    iptables -t mangle -N WG_MARK
-    iptables -t mangle -A WG_MARK -j MARK --set-mark 100
-    iptables -t mangle -A PREROUTING -m set --match-set $IPSET_NAME dst -j WG_MARK
-    iptables -t mangle -A OUTPUT -m set --match-set $IPSET_NAME dst -j WG_MARK
-    iptables -t nat -A POSTROUTING -o $WG_INTERFACE -j MASQUERADE
+    ensure_chain iptables mangle $IPTABLES_CHAIN
+    iptables -t mangle -A $IPTABLES_CHAIN -m set --match-set $IPSET_DIRECT_V4 dst -j RETURN
+    iptables -t mangle -A $IPTABLES_CHAIN -m set --match-set $IPSET_UPSTREAM_V4 dst -j MARK --set-mark $WG_FWMARK
+    iptables -t mangle -A $IPTABLES_CHAIN -j RETURN
+
+    ensure_jump iptables mangle PREROUTING $IPTABLES_CHAIN
+    ensure_jump iptables mangle OUTPUT $IPTABLES_CHAIN
+
+    if ! iptables -t nat -C POSTROUTING -o $WG_INTERFACE -j MASQUERADE &>/dev/null; then
+        iptables -t nat -A POSTROUTING -o $WG_INTERFACE -j MASQUERADE
+    fi
+
+    ensure_chain ip6tables mangle $IP6TABLES_CHAIN
+    ip6tables -t mangle -A $IP6TABLES_CHAIN -m set --match-set $IPSET_DIRECT_V6 dst -j RETURN
+    ip6tables -t mangle -A $IP6TABLES_CHAIN -m set --match-set $IPSET_UPSTREAM_V6 dst -j MARK --set-mark $WG_FWMARK
+    ip6tables -t mangle -A $IP6TABLES_CHAIN -j RETURN
+
+    ensure_jump ip6tables mangle PREROUTING $IP6TABLES_CHAIN
+    ensure_jump ip6tables mangle OUTPUT $IP6TABLES_CHAIN
 }
 
 # 配置路由
 setup_routing() {
-    ip rule add fwmark 100 table 100
-    ip route add default dev $WG_INTERFACE table 100
-}
-
-# 配置 dnsmasq
-setup_dnsmasq() {
-    mkdir -p /etc/dnsmasq.d
-    echo "no-resolv" > $DNSMASQ_CONF
-    echo "server=8.8.8.8" >> $DNSMASQ_CONF
-    echo "server=1.1.1.1" >> $DNSMASQ_CONF
-    echo "listen-address=127.0.0.1" >> $DNSMASQ_CONF
-
-    # 只处理域名，跳过 IP 和 IP 段
-    while IFS= read -r line; do
-        # 去除空格和注释
-        line=$(echo "$line" | sed 's/#.*//' | xargs)
-        [ -z "$line" ] && continue
-        
-        # 如果不是 IP 或 IP 段，则认为是域名
-        if ! is_ip "$line" && ! is_cidr "$line"; then
-            echo "ipset=/$line/$IPSET_NAME" >> $DNSMASQ_CONF
-            echo "已添加域名: $line"
-        fi
-    done < "$DOMAIN_FILE"
-
-    echo "nameserver 127.0.0.1" > /etc/resolv.conf
-}
-
-# 启动 dnsmasq
-start_dnsmasq() {
-    pkill dnsmasq || true
-    dnsmasq --conf-file=$DNSMASQ_CONF
-    echo "dnsmasq 已启动"
-}
-
-# 监控 dnsmasq
-monitor_dnsmasq() {
-    while true; do
-        if ! pgrep -x dnsmasq > /dev/null; then
-            echo "检测到 dnsmasq 已停止，正在重启..."
-            start_dnsmasq
-        fi
-        sleep 5
-    done
+    ip rule del fwmark $WG_FWMARK table $WG_ROUTE_TABLE 2>/dev/null || true
+    ip route del default dev $WG_INTERFACE table $WG_ROUTE_TABLE 2>/dev/null || true
+    ip rule add fwmark $WG_FWMARK table $WG_ROUTE_TABLE
+    ip route add default dev $WG_INTERFACE table $WG_ROUTE_TABLE
 }
 
 # 停止 WireGuard
@@ -219,55 +337,40 @@ stop_wireguard() {
 }
 
 # 清理 ipset
-cleanup_ipset() {
+cleanup_ipsets() {
     echo "正在清理 ipset..."
-    if ipset list $IPSET_NAME &> /dev/null; then
-        ipset destroy $IPSET_NAME
-        echo "ipset 已清理"
-    else
-        echo "ipset 不存在"
-    fi
+    for set in $IPSET_UPSTREAM_V4 $IPSET_UPSTREAM_V6 $IPSET_DIRECT_V4 $IPSET_DIRECT_V6; do
+        if ipset list "$set" &>/dev/null; then
+            ipset destroy "$set" 2>/dev/null || ipset flush "$set" 2>/dev/null || true
+        fi
+    done
+    echo "ipset 清理完成"
 }
 
 # 清理 iptables
 cleanup_iptables() {
     echo "正在清理 iptables 规则..."
     iptables -t nat -D POSTROUTING -o $WG_INTERFACE -j MASQUERADE 2>/dev/null || true
-    iptables -t mangle -D OUTPUT -m set --match-set $IPSET_NAME dst -j WG_MARK 2>/dev/null || true
-    iptables -t mangle -D PREROUTING -m set --match-set $IPSET_NAME dst -j WG_MARK 2>/dev/null || true
-    iptables -t mangle -F WG_MARK 2>/dev/null || true
-    iptables -t mangle -X WG_MARK 2>/dev/null || true
+    for parent in PREROUTING OUTPUT; do
+        iptables -t mangle -D $parent -j $IPTABLES_CHAIN 2>/dev/null || true
+    done
+    iptables -t mangle -F $IPTABLES_CHAIN 2>/dev/null || true
+    iptables -t mangle -X $IPTABLES_CHAIN 2>/dev/null || true
+
+    for parent in PREROUTING OUTPUT; do
+        ip6tables -t mangle -D $parent -j $IP6TABLES_CHAIN 2>/dev/null || true
+    done
+    ip6tables -t mangle -F $IP6TABLES_CHAIN 2>/dev/null || true
+    ip6tables -t mangle -X $IP6TABLES_CHAIN 2>/dev/null || true
     echo "iptables 规则已清理"
 }
 
 # 清理路由
 cleanup_routing() {
     echo "正在清理路由规则..."
-    ip route del default dev $WG_INTERFACE table 100 2>/dev/null || true
-    ip rule del fwmark 100 table 100 2>/dev/null || true
+    ip route del default dev $WG_INTERFACE table $WG_ROUTE_TABLE 2>/dev/null || true
+    ip rule del fwmark $WG_FWMARK table $WG_ROUTE_TABLE 2>/dev/null || true
     echo "路由规则已清理"
-}
-
-# 停止 dnsmasq
-stop_dnsmasq() {
-    echo "正在重启 dnsmasq..."
-    pkill dnsmasq || true
-    if [ -f "$DNSMASQ_CONF" ]; then
-        rm -f "$DNSMASQ_CONF"
-        echo "dnsmasq WireGuard 配置已删除"
-    fi
-    # 重启 dnsmasq（不带 WireGuard 配置）
-    dnsmasq
-    echo "dnsmasq 已重启"
-}
-
-# 恢复 DNS 配置
-restore_dns() {
-    echo "正在恢复 DNS 配置..."
-    # 恢复默认 DNS（可以根据需要修改）
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf
-    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    echo "DNS 配置已恢复"
 }
 
 # WireGuard Up
@@ -276,14 +379,9 @@ wireguard_up() {
     
     check_requirements
     setup_wireguard
-    setup_ipset
+    setup_ipsets
     setup_iptables
     setup_routing
-    setup_dnsmasq
-    start_dnsmasq
-    
-    # 后台运行 dnsmasq 守护进程
-    monitor_dnsmasq &
     
     echo "WireGuard 分流系统启动完成！"
     
@@ -301,11 +399,9 @@ wireguard_down() {
         exit 1
     fi
     
-    stop_dnsmasq
-    restore_dns
     cleanup_routing
     cleanup_iptables
-    cleanup_ipset
+    cleanup_ipsets
     stop_wireguard
     
     echo "WireGuard 分流系统已关闭！"
@@ -324,17 +420,20 @@ show_usage() {
     echo "  DOMAIN_FILE  域名列表文件路径 (默认: /root/.wireguard/domain.txt)"
     echo ""
     echo "domain.txt 格式说明:"
-    echo "  支持三种格式的条目（每行一个）："
-    echo "  1. 域名: example.com"
-    echo "  2. IP 地址: 192.168.1.1"
-    echo "  3. IP 段 (CIDR): 192.168.1.0/24"
-    echo "  4. 注释: 以 # 开头的行会被忽略"
+    echo "  支持如下格式的条目（每行一个）："
+    echo "  1. 域名: example.com （默认走上游）"
+    echo "  2. IPv4/IPv6: 192.168.1.1 或 2404:6800::1"
+    echo "  3. CIDR: 192.168.1.0/24 或 2404:6800::/32"
+    echo "  4. 显式前缀: upstream example.com / direct example.org"
+    echo "  5. 注释: 以 # 开头的行会被忽略"
     echo ""
     echo "示例 domain.txt:"
-    echo "  # 这是注释"
-    echo "  google.com"
+    echo "  # 上游分流"
+    echo "  upstream google.com"
+    echo "  # 保持直连"
+    echo "  direct example.cn"
     echo "  192.168.1.100"
-    echo "  10.0.0.0/8"
+    echo "  2404:6800::/32"
 }
 
 # 主函数
