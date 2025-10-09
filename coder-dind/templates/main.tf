@@ -150,6 +150,9 @@ resource "coder_agent" "main" {
       echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/.wireguard/wgdind.conf
       chmod 600 /home/coder/.wireguard/wgdind.conf
       echo "WireGuard config saved"
+    else
+      rm -f /home/coder/.wireguard/wgdind.conf
+      echo "No WireGuard config provided"
     fi
     
     # Save WireGuard domains if provided
@@ -157,6 +160,9 @@ resource "coder_agent" "main" {
       echo "${data.coder_parameter.wireguard_domains.value}" > /home/coder/.wireguard/domain.txt
       chmod 644 /home/coder/.wireguard/domain.txt
       echo "WireGuard domains saved"
+    else
+      rm -f /home/coder/.wireguard/domain.txt
+      echo "No WireGuard domains provided"
     fi
     
     # Then run WireGuard setup if config exists
