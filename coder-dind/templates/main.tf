@@ -11,6 +11,9 @@ terraform {
 
 locals {
   workspace_image = "kuaifan/coder-dind:0.0.6"
+  repo_url_lines  = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
+  repo_url_inputs = [for line in local.repo_url_lines : line if line != ""]
+  repo_primary_folder = length(local.repo_url_inputs) == 1 ? "/home/coder/workspaces/${trimsuffix(basename(element(local.repo_url_inputs, 0)), ".git")}" : "/home/coder/workspaces"
   docker_port_lines = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
   docker_port_inputs = [for line in local.docker_port_lines : line if line != ""]
   docker_ports = [
@@ -50,21 +53,26 @@ data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "repo_url" {
   default      = ""
-  description  = "(Optional) Enter the URL of the Git repository to clone into your workspace."
-  display_name = "Git Repository"
+  description  = "（可选）输入需要克隆到工作区的 Git 仓库 URL（每行一个）。"
+  display_name = "Git 仓库"
   mutable      = true
   name         = "repo_url"
   type         = "string"
+  form_type    = "textarea"
   order        = 1
   styling = jsonencode({
-    placeholder = "https://github.com/username/repository.git"
+    placeholder = <<-EOT
+    例如
+    https://github.com/username/repository.git
+    https://gitlab.com/org/project.git
+    EOT
   })
 }
 
 data "coder_parameter" "docker_ports" {
   default      = ""
-  description  = "(Optional) List of ports to expose from the workspace container. One port or mapping per line."
-  display_name = "Docker Ports"
+  description  = "（可选）列出需要从工作区容器暴露的端口，每行一个端口或映射。"
+  display_name = "Docker 端口"
   mutable      = true
   name         = "docker_ports"
   type         = "string"
@@ -72,59 +80,12 @@ data "coder_parameter" "docker_ports" {
   order        = 2
   styling = jsonencode({
     placeholder = <<-EOT
-    e.g.
+    例如
     80
     443
     8080:80
     53/udp
     10053:53/udp
-    EOT
-  })
-}
-
-data "coder_parameter" "wireguard_config" {
-  default      = ""
-  description  = "(Optional) WireGuard configuration content"
-  display_name = "WireGuard Config"
-  mutable      = true
-  name         = "wireguard_config"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 3
-  styling = jsonencode({
-    placeholder = <<-EOT
-    e.g.
-    [Interface]
-    PrivateKey = your_private_key_here
-    Address = 10.0.0.2/32
-    ...
-    [Peer]
-    PublicKey = server_public_key_here
-    Endpoint = vpn.example.com:51820
-    ...
-    EOT
-  })
-}
-
-data "coder_parameter" "wireguard_domains" {
-  default      = ""
-  description  = "(Optional) Split-tunneling rules. One entry per line; items default to upstream (VPN) and support prefixes like direct example.com to bypass."
-  display_name = "WireGuard Split Tunneling"
-  mutable      = true
-  name         = "wireguard_domains"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 4
-  styling = jsonencode({
-    placeholder = <<-EOT
-    e.g.
-    upstream example.com
-    direct example.cn
-    api.openai.com
-    192.168.1.100
-    10.0.0.0/24
-    2001:db8::/32
-    ...
     EOT
   })
 }
@@ -142,55 +103,11 @@ resource "coder_agent" "main" {
     # Start Docker first
     sudo service docker start
 
-    # Create WireGuard configuration directory
-    mkdir -p /home/coder/.wireguard
-    
-    # Save WireGuard config if provided
-    if [ -n "${data.coder_parameter.wireguard_config.value}" ]; then
-      echo "${data.coder_parameter.wireguard_config.value}" > /home/coder/.wireguard/wgdind.conf
-      chmod 600 /home/coder/.wireguard/wgdind.conf
-      echo "WireGuard config saved"
-    else
-      rm -f /home/coder/.wireguard/wgdind.conf
-      echo "No WireGuard config provided"
-    fi
-    
-    # Save WireGuard domains if provided
-    if [ -n "${data.coder_parameter.wireguard_domains.value}" ]; then
-      echo "${data.coder_parameter.wireguard_domains.value}" > /home/coder/.wireguard/domain.txt
-      chmod 644 /home/coder/.wireguard/domain.txt
-      echo "WireGuard domains saved"
-    else
-      rm -f /home/coder/.wireguard/domain.txt
-      echo "No WireGuard domains provided"
-    fi
-    
-    # Then run WireGuard setup if config exists
-    if [ -f /home/coder/.wireguard/wgdind.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
-      echo "Starting WireGuard initialization..." \
-           | tee /home/coder/.wireguard/wgdind.log
-      sudo WG_CONF="/home/coder/.wireguard/wgdind.conf" \
-           DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
-           bash /usr/local/bin/wireguard-tools.sh \
-           >> /home/coder/.wireguard/wgdind.log 2>&1 \
-           || (echo "WireGuard setup failed, continuing..." \
-               | tee -a /home/coder/.wireguard/wgdind.log)
-    fi
   EOT
   shutdown_script = <<-EOT
     set -e
     docker system prune -a -f
     sudo service docker stop
-
-    # Then run WireGuard cleanup if config exists
-    if [ -f /home/coder/.wireguard/wgdind.conf ] && [ -f /home/coder/.wireguard/domain.txt ]; then
-      echo "Stopping WireGuard..." \
-           | tee -a /home/coder/.wireguard/wgdind.log
-      sudo WG_CONF="/home/coder/.wireguard/wgdind.conf" \
-           DOMAIN_FILE="/home/coder/.wireguard/domain.txt" \
-           bash /usr/local/bin/wireguard-tools.sh down \
-           >> /home/coder/.wireguard/wgdind.log 2>&1
-    fi
   EOT
 
   env = {
@@ -201,7 +118,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "CPU Usage"
+    display_name = "CPU 使用率"
     key          = "0_cpu_usage"
     script       = "coder stat cpu"
     interval     = 10
@@ -209,7 +126,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "RAM Usage"
+    display_name = "内存使用率"
     key          = "1_ram_usage"
     script       = "coder stat mem"
     interval     = 10
@@ -217,7 +134,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "Home Disk"
+    display_name = "Home 磁盘"
     key          = "3_home_disk"
     script       = "coder stat disk --path $${HOME}"
     interval     = 60
@@ -225,7 +142,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "CPU Usage (Host)"
+    display_name = "CPU 使用率（宿主机）"
     key          = "4_cpu_usage_host"
     script       = "coder stat cpu --host"
     interval     = 10
@@ -233,7 +150,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "Memory Usage (Host)"
+    display_name = "内存使用率（宿主机）"
     key          = "5_mem_usage_host"
     script       = "coder stat mem --host"
     interval     = 10
@@ -241,7 +158,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "Load Average (Host)"
+    display_name = "平均负载（宿主机）"
     key          = "6_load_host"
     script   = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
@@ -251,7 +168,7 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "Swap Usage (Host)"
+    display_name = "交换分区使用率（宿主机）"
     key          = "7_swap_host"
     script       = <<EOT
       free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }'
@@ -263,10 +180,10 @@ resource "coder_agent" "main" {
 
 # See https://registry.coder.com/modules/coder/git-clone
 module "git-clone" {
-  count       = data.coder_parameter.repo_url.value != "" ? data.coder_workspace.me.start_count : 0
+  for_each    = data.coder_workspace.me.start_count > 0 ? { for idx, url in local.repo_url_inputs : "${tostring(data.coder_workspace.me.start_count)}-${tostring(idx)}" => url } : {}
   source      = "registry.coder.com/coder/git-clone/coder"
   agent_id    = coder_agent.main.id
-  url         = data.coder_parameter.repo_url.value
+  url         = each.value
   base_dir    = "/home/coder/workspaces"
   version     = "~> 1.0"
 }
@@ -276,7 +193,7 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = data.coder_parameter.repo_url.value != "" ? "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}" : "/home/coder/workspaces"
+  folder          = local.repo_primary_folder
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions      = [
@@ -297,7 +214,7 @@ module "cursor" {
   source      = "registry.coder.com/coder/cursor/coder"
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
-  folder      = data.coder_parameter.repo_url.value != "" ? "/home/coder/workspaces/${trimsuffix(basename(data.coder_parameter.repo_url.value), ".git")}" : "/home/coder/workspaces"
+  folder      = local.repo_primary_folder
 }
 
 resource "docker_volume" "home_volume" {
