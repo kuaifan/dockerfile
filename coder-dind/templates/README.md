@@ -1,16 +1,23 @@
 ---
-display_name: DinD Dev Containers
-description: A workspace that runs in Dev Containers using Docker in Docker.
-icon: ../../../site/static/icon/docker.png
+display_name: Ubuntu 24.04
+description: 基于 Ubuntu 24.04 的 DinD 开发容器。
+icon: ../../../site/static/icon/ubuntu.svg
 verified: true  
-tags: [docker, container, devcontainer, node]  
+tags: [ubuntu, ubuntu-24.04, docker, dind, container, devcontainer, node]  
 ---
 
-# 在 Dev Containers 中进行远程开发
+Ubuntu 24.04 · DinD 开发环境
+========================================
 
-该模板会配置以下资源：
+这是一个基于 Ubuntu 24.04 LTS（noble）的 Dev Container，内置 Docker-in-Docker（DinD），用于在容器内构建与运行 Docker。
 
-- Docker 卷：挂载到 `/home/coder`（持久化）
-- Docker 卷：挂载到 `/var/lib/docker`（持久化）
+持久化目录
+----------
 
-这意味着：当工作空间重启时，除 workspaces 目录与 docker 数据目录外的其它工具或文件都不会被保留。
+- /home/coder：工作目录（持久化）
+- /var/lib/docker：Docker 数据目录（持久化）
+
+重启后的行为
+------------
+
+工作空间重启后，除以上持久化目录外的其它更改不会保留。需要长期保存的内容，请映射到上述目录或新增卷挂载。

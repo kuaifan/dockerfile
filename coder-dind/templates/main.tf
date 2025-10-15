@@ -100,6 +100,10 @@ resource "coder_agent" "main" {
       touch /home/coder/.init_done
     fi
 
+    if [ ! -d /home/coder/.oh-my-bash ]; then
+      bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
+    fi
+
     # Start Docker first
     sudo service docker start
 
