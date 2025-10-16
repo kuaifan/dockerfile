@@ -15,34 +15,37 @@ locals {
   workspace_image_variants = [
     {
       key        = "default"
-      label      = format("默认（%s）", local.workspace_image_version)
-      env_prefix = ""
+      label      = "默认环境"
+      version    = local.workspace_image_version
     },
     {
       key        = "golang"
-      label      = format("Go 环境（golang-%s）", local.workspace_image_version)
-      env_prefix = "golang-"
+      label      = "Go 环境"
+      version    = format("golang-%s", local.workspace_image_version)
     },
     {
       key        = "php"
-      label      = format("PHP 环境（php-%s）", local.workspace_image_version)
-      env_prefix = "php-"
+      label      = "PHP 环境"
+      version    = format("php-%s", local.workspace_image_version)
     },
     {
       key        = "python"
-      label      = format("Python 环境（python-%s）", local.workspace_image_version)
-      env_prefix = "python-"
+      label      = "Python 环境"
+      version    = format("python-%s", local.workspace_image_version)
     }
   ]
   workspace_image_options = [
     for variant in local.workspace_image_variants : {
       name  = variant.label
-      value = format("%s:%s%s", local.workspace_image_base, variant.env_prefix, local.workspace_image_version)
+      value = variant.key
+      image = format("%s:%s", local.workspace_image_base, variant.version)
     }
   ]
-  workspace_default_image   = element(local.workspace_image_options, 0).value
-  workspace_selection_image = trimspace(data.coder_parameter.workspace_image.value)
-  workspace_final_image     = local.workspace_selection_image != "" ? local.workspace_selection_image : local.workspace_default_image
+  workspace_image_map            = { for option in local.workspace_image_options : option.value => option.image }
+  workspace_default_image_key    = element(local.workspace_image_options, 0).value
+  workspace_selection_image_key  = trimspace(data.coder_parameter.workspace_image.value)
+  workspace_effective_image_key  = local.workspace_selection_image_key != "" ? local.workspace_selection_image_key : local.workspace_default_image_key
+  workspace_final_image          = lookup(local.workspace_image_map, local.workspace_effective_image_key, element(local.workspace_image_options, 0).image)
 
   repo_url_lines      = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
   repo_url_inputs     = [for line in local.repo_url_lines : line if line != ""]
@@ -86,15 +89,21 @@ data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "workspace_image" {
-  default      = local.workspace_default_image
+  default      = local.workspace_default_image_key
   description  = "选择用于工作区的基础镜像。"
   display_name = "工作区镜像"
   mutable      = true
   name         = "workspace_image"
   type         = "string"
-  form_type    = "select"
+  form_type    = "dropdown"
   order        = 0
-  options      = local.workspace_image_options
+  dynamic "option" {
+    for_each = local.workspace_image_options
+    content {
+      name  = option.value.name
+      value = option.value.value
+    }
+  }
 }
 
 data "coder_parameter" "repo_url" {
