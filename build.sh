@@ -99,32 +99,27 @@ PY
             echo "::notice::使用默认 Dockerfile 构建标签 ${variantTag}"
         fi
 
-        echo "-------------------"
-        echo "${imageName}:${variantTag}"
-
         if [ "$imageForce" = "yes" ]; then
-            echo "Force push"
+            echo "::notice::强制构建，跳过已存在检查"
             response=404
         else
             response=$(curl -s -o /dev/null -w "%{http_code}" -X GET -u "$DOCKERHUB_USERNAME:$DOCKERHUB_TOKEN" "https://hub.docker.com/v2/repositories/$imageName/tags/$variantTag" || echo "404")
         fi
 
         if [ "$response" = 200 ]; then
-            echo "Already exists"
             echo "::notice::镜像 ${imageName}:${variantTag} 已存在，跳过构建"
             echo "::endgroup::"
             exit 0
         fi
 
-        mkdir -p "${dir}/private-repo"
-
         # 复制可选的私有资源（为空时跳过以避免报错）
+        mkdir -p "${dir}/private-repo"
         if compgen -G "${cur_path}/private-repo/*" > /dev/null; then
             cp -r "${cur_path}"/private-repo/* "${dir}/private-repo"
         fi
 
         pushd "$dir" > /dev/null
-        echo "Start building..."
+        echo "::notice::开始构建镜像 ${imageName}:${variantTag}"
 
         tags=("--tag" "${imageName}:${variantTag}")
         if [ "$dockerfile" = "Dockerfile" ] && [ "$variantTag" != "latest" ]; then
@@ -132,9 +127,9 @@ PY
         fi
 
         if docker buildx build --platform linux/amd64,linux/arm64 "${tags[@]}" "${dockerfileArg[@]}" . --push; then
-            echo "✅ Build successfully"
+            echo "::notice::✅ 构建成功"
         else
-            echo "❌ Build failed"
+            echo "::error::❌ 构建失败"
             popd > /dev/null
             exit 1
         fi
