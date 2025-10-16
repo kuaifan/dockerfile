@@ -10,12 +10,46 @@ terraform {
 }
 
 locals {
-  workspace_image = "kuaifan/coder-dind:0.0.6"
-  repo_url_lines  = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
-  repo_url_inputs = [for line in local.repo_url_lines : line if line != ""]
+  workspace_image_base     = "kuaifan/coder"
+  workspace_image_version  = "0.0.1"
+  workspace_image_variants = [
+    {
+      key        = "default"
+      label      = format("默认（%s）", local.workspace_image_version)
+      env_prefix = ""
+    },
+    {
+      key        = "golang"
+      label      = format("Go 环境（golang-%s）", local.workspace_image_version)
+      env_prefix = "golang-"
+    },
+    {
+      key        = "php"
+      label      = format("PHP 环境（php-%s）", local.workspace_image_version)
+      env_prefix = "php-"
+    },
+    {
+      key        = "python"
+      label      = format("Python 环境（python-%s）", local.workspace_image_version)
+      env_prefix = "python-"
+    }
+  ]
+  workspace_image_options = [
+    for variant in local.workspace_image_variants : {
+      name  = variant.label
+      value = format("%s:%s%s", local.workspace_image_base, variant.env_prefix, local.workspace_image_version)
+    }
+  ]
+  workspace_default_image   = element(local.workspace_image_options, 0).value
+  workspace_selection_image = trimspace(data.coder_parameter.workspace_image.value)
+  workspace_final_image     = local.workspace_selection_image != "" ? local.workspace_selection_image : local.workspace_default_image
+
+  repo_url_lines      = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
+  repo_url_inputs     = [for line in local.repo_url_lines : line if line != ""]
   repo_primary_folder = length(local.repo_url_inputs) == 1 ? "/home/coder/workspaces/${trimsuffix(basename(element(local.repo_url_inputs, 0)), ".git")}" : "/home/coder/workspaces"
-  docker_port_lines = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
-  docker_port_inputs = [for line in local.docker_port_lines : line if line != ""]
+
+  docker_port_lines   = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
+  docker_port_inputs  = [for line in local.docker_port_lines : line if line != ""]
   docker_ports = [
     for entry in local.docker_port_inputs : trimspace(entry)
     if length(regexall("(?i)^\\d+(?::\\d+)?(?:/(tcp|udp))?$", trimspace(entry))) > 0
@@ -50,6 +84,18 @@ provider "docker" {
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+
+data "coder_parameter" "workspace_image" {
+  default      = local.workspace_default_image
+  description  = "选择用于工作区的基础镜像。"
+  display_name = "工作区镜像"
+  mutable      = true
+  name         = "workspace_image"
+  type         = "string"
+  form_type    = "select"
+  order        = 0
+  options      = local.workspace_image_options
+}
 
 data "coder_parameter" "repo_url" {
   default      = ""
@@ -100,6 +146,7 @@ resource "coder_agent" "main" {
       touch /home/coder/.init_done
     fi
 
+    # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
@@ -269,7 +316,7 @@ resource "docker_volume" "docker_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = local.workspace_image
+  image = local.workspace_final_image
   privileged = true
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name

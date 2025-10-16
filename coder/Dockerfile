@@ -14,10 +14,6 @@ RUN apt-get update \
 # Add the Docker apt repository
 COPY ./resources/docker-archive-keyring.gpg /usr/share/keyrings/docker-archive-keyring.gpg
 COPY ./resources/docker.list /etc/apt/sources.list.d/docker.list
-COPY ./resources/wireguard-tools.sh /usr/local/bin/wireguard-tools.sh
-
-# Make the WireGuard setup script executable
-RUN chmod +x /usr/local/bin/wireguard-tools.sh
 
 # Install baseline packages
 RUN add-apt-repository -y ppa:fish-shell/release-4 \
@@ -49,12 +45,6 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     vim \
     wget \
     rsync \
-    wireguard-tools \
-    iptables \
-    ipset \
-    dnsutils \
-    iproute2 \
-    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Enables Docker starting with systemd
