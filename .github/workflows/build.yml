@@ -14,7 +14,8 @@ jobs:
     name: Discover directories
     runs-on: ubuntu-latest
     outputs:
-      dirs: ${{ steps.collect.outputs.dirs }}
+      matrix: ${{ steps.collect.outputs.matrix }}
+      has_targets: ${{ steps.collect.outputs.has_targets }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,17 +54,16 @@ jobs:
         id: collect
         run: |
           set -euo pipefail
-          python3 -c "import json, os, glob; dirs=[d for d in sorted(os.listdir('.')) if os.path.isdir(d) and glob.glob(os.path.join(d, '*Dockerfile'))]; print(f'dirs={json.dumps(dirs)}')" >>"$GITHUB_OUTPUT"
+          bash ./build.sh list >>"$GITHUB_OUTPUT"
 
   build:
     needs: discover
     name: Build ${{ matrix.dir }}
-    if: ${{ needs.discover.outputs.dirs != '[]' }}
+    if: ${{ needs.discover.outputs.has_targets == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        dir: ${{ fromJson(needs.discover.outputs.dirs) }}
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -94,9 +94,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push
+      - name: Build and Push ${{ matrix.dockerfile }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          bash ./build.sh "${{ matrix.dir }}"
+          bash ./build.sh build "${{ matrix.dir }}" "${{ matrix.dockerfile }}"
