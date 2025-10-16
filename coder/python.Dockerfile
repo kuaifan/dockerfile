@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=coder:latest
+ARG BASE_IMAGE=kuaifan/coder:latest
 FROM ${BASE_IMAGE}
 
 USER root

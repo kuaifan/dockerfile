@@ -5,10 +5,19 @@ cur_path="$(pwd)"
 # 允许通配符在未匹配时返回空数组，便于逐目录查找 Dockerfile
 shopt -s nullglob
 
-# 遍历当前目录
-for dir in */; do
-    dir="${dir%/}"
-    [ -d "$dir" ] || continue
+if [ "$#" -gt 0 ]; then
+    targets=("$@")
+else
+    targets=()
+    for dir in */; do
+        dir="${dir%/}"
+        [ -d "$dir" ] || continue
+        targets+=("$dir")
+    done
+fi
+
+for dir in "${targets[@]}"; do
+    [ -d "$dir" ] || { echo "::warning::目标 ${dir} 不存在，跳过"; continue; }
 
     echo "::group::处理目录 $dir"
 
@@ -94,8 +103,9 @@ for dir in */; do
         if compgen -G "${cur_path}/private-repo/*" > /dev/null; then
             cp -r ${cur_path}/private-repo/* "${dir}/private-repo"
         fi
-        pushd "$dir" > /dev/null
+        
         echo "Start building..."
+        pushd "$dir" > /dev/null
         
         # 默认构建变体标签；如果是标准 Dockerfile 再额外标记 latest 以兼容旧引用
         tags=("--tag" "${imageName}:${variantTag}")
