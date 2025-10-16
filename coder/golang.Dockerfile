@@ -23,8 +23,16 @@ RUN set -eux; \
         *) echo >&2 "Unsupported architecture: $arch"; exit 1 ;; \
     esac; \
     if [ "$arch" = "arm64" ]; then \
-        apt-get update; \
-        apt-get install -y --no-install-recommends binutils-gold; \
+        for attempt in $(seq 1 5); do \
+            if apt-get update && apt-get install -y --no-install-recommends binutils-gold; then \
+                break; \
+            fi; \
+            if [ "$attempt" -eq 5 ]; then \
+                echo >&2 "Failed to install binutils-gold after ${attempt} attempts"; \
+                exit 1; \
+            fi; \
+            sleep $((attempt * 2)); \
+        done; \
         rm -rf /var/lib/apt/lists/*; \
     fi; \
     tmpdir="$(mktemp -d)"; \
@@ -33,6 +41,7 @@ RUN set -eux; \
     echo "$go_sha256  go.tgz" | sha256sum -c -; \
     rm -rf "${GOROOT}"; \
     tar -C /usr/local -xzf go.tgz; \
+    cd /; \
     rm -rf "$tmpdir"; \
     go version
 

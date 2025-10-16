@@ -58,7 +58,7 @@ jobs:
 
   build:
     needs: discover
-    name: Build ${{ matrix.dir }}
+    name: Build ${{ matrix.label }}
     if: ${{ needs.discover.outputs.has_targets == 'true' }}
     runs-on: ubuntu-latest
     strategy:
@@ -94,7 +94,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push ${{ matrix.dockerfile }}
+      - name: Build and Push
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -31,7 +31,12 @@ for entry in sorted(os.listdir(".")):
         continue
     matches.sort(key=lambda p: (0 if os.path.basename(p) == "Dockerfile" else 1, os.path.basename(p)))
     for path in matches:
-        entries.append({"dir": entry, "dockerfile": os.path.basename(path)})
+        base = os.path.basename(path)
+        variant = ""
+        if base != "Dockerfile" and base.endswith(".Dockerfile"):
+            variant = base[: -len(".Dockerfile")]
+        label = entry if not variant else f"{entry} ({variant})"
+        entries.append({"dir": entry, "dockerfile": base, "variant": variant, "label": label})
 matrix = {"include": entries}
 print(f"matrix={json.dumps(matrix)}")
 print(f"has_targets={'true' if entries else 'false'}")
