@@ -155,6 +155,11 @@ resource "coder_agent" "main" {
       touch /home/coder/.init_done
     fi
 
+    # create workspaces directory
+    if [ ! -d /home/coder/workspaces ]; then
+      mkdir -p /home/coder/workspaces
+    fi
+
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
