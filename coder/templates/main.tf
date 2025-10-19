@@ -11,7 +11,7 @@ terraform {
 
 locals {
   workspace_image_base     = "kuaifan/coder"
-  workspace_image_version  = "0.0.1"
+  workspace_image_version  = "0.0.2"
   workspace_image_variants = [
     {
       key        = "default"
@@ -32,6 +32,11 @@ locals {
       key        = "python"
       label      = "Python 环境"
       version    = format("python-%s", local.workspace_image_version)
+    },
+    {
+      key        = "flutter"
+      label      = "Flutter 环境"
+      version    = format("flutter-%s", local.workspace_image_version)
     }
   ]
   workspace_image_options = [

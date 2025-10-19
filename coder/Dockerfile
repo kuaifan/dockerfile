@@ -45,6 +45,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     vim \
     wget \
     rsync \
+    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # Enables Docker starting with systemd
@@ -76,6 +77,9 @@ RUN set -eux; \
     corepack prepare pnpm@latest --activate || npm install -g pnpm; \
     apt-get purge -y --auto-remove gnupg; \
     rm -rf /var/lib/apt/lists/*
+
+# Install Easytier
+RUN curl -fsSL https://raw.githubusercontent.com/EasyTier/EasyTier/main/script/install.sh | bash -s install
 
 # Remove the `ubuntu` user and add a user `coder` so that you're not developing as the `root` user
 RUN userdel -r ubuntu && \
