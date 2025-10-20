@@ -4,8 +4,10 @@ FROM ${BASE_IMAGE}
 ARG FLUTTER_VERSION=3.35.6
 
 ARG ANDROID_SDK_VERSION=13114758
-ARG ANDROID_BUILD_TOOLS_VERSION=35.0.0
-ARG ANDROID_PLATFORM=android-35
+ARG ANDROID_BUILD_TOOLS_VERSION=36.0.0
+ARG ANDROID_PLATFORM=android-36
+ARG ANDROID_NDK_VERSION=27.0.12077973
+ARG ANDROID_CMAKE_VERSION=3.22.1
 
 USER root
 
@@ -37,7 +39,9 @@ RUN set -eux; \
     "${sdk_root}/cmdline-tools/latest/bin/sdkmanager" --sdk_root="${sdk_root}" \
         "platform-tools" \
         "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
-        "platforms;${ANDROID_PLATFORM}"; \
+        "platforms;${ANDROID_PLATFORM}" \
+        "ndk;${ANDROID_NDK_VERSION}" \
+        "cmake;${ANDROID_CMAKE_VERSION}"; \
     chown -R coder:coder "${sdk_root}"
 
 ENV FLUTTER_HOME=/opt/flutter \
@@ -48,4 +52,6 @@ ENV FLUTTER_HOME=/opt/flutter \
 USER coder
 
 RUN set -eux; \
+    flutter config --no-analytics; \
+    flutter precache --android --no-universal; \
     flutter --version

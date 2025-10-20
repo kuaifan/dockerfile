@@ -165,6 +165,37 @@ resource "coder_agent" "main" {
       mkdir -p /home/coder/workspaces
     fi
 
+    # Prepare Flutter-specific tooling on persistent storage
+    if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
+      if [ ! -x /home/coder/flutter/bin/flutter ]; then
+        sudo rm -rf /home/coder/flutter
+        sudo mkdir -p /home/coder/flutter
+        sudo rsync -a /opt/flutter/ /home/coder/flutter/
+        sudo chown -R coder:coder /home/coder/flutter
+      fi
+      if [ ! -L /opt/flutter ]; then
+        sudo rm -rf /opt/flutter
+        sudo ln -s /home/coder/flutter /opt/flutter
+      fi
+
+      if [ ! -d /home/coder/android-sdk/platforms ]; then
+        sudo rm -rf /home/coder/android-sdk
+        sudo mkdir -p /home/coder/android-sdk
+        sudo rsync -a /opt/android-sdk/ /home/coder/android-sdk/
+        sudo chown -R coder:coder /home/coder/android-sdk
+      fi
+      if [ ! -L /opt/android-sdk ]; then
+        sudo rm -rf /opt/android-sdk
+        sudo ln -s /home/coder/android-sdk /opt/android-sdk
+      fi
+    fi
+
+    # Join the EasyTier mesh so the workspace can reach coder.hitosea.com
+    if ! pgrep -x easytier-core >/dev/null 2>&1; then
+      mkdir -p /home/coder/log
+      sudo nohup easytier-core --hostname $${CODER_WORKSPACE_OWNER_NAME}/$${HOSTNAME} --network-name hitosea --network-secret ajax9999 -d -p tcp://coder.hitosea.com:11010 >/home/coder/log/easytier-core.log 2>&1 &
+    fi
+
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
@@ -172,7 +203,6 @@ resource "coder_agent" "main" {
 
     # Start Docker first
     sudo service docker start
-
   EOT
   shutdown_script = <<-EOT
     set -e
@@ -185,6 +215,7 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+    WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
   }
 
   metadata {
