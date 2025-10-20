@@ -45,6 +45,8 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     vim \
     wget \
     rsync \
+    lsof \
+    socat \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
