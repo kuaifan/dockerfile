@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 SCRIPT_URLS = [
     "https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh",
@@ -43,6 +43,8 @@ FISH_WRAPPER_SNIPPET = (
     "end\n"
     f"{WRAPPER_END}\n"
 )
+
+T = TypeVar("T")
 
 
 def install_self() -> int:
@@ -182,8 +184,8 @@ def prompt_selection(title: str, options: List[str]) -> Optional[int]:
         print("无效的选择，请重试。", file=sys.stderr)
 
 
-def fetch_peers() -> List[Tuple[str, str]]:
-    """调用 easytier-cli 获取节点列表，返回 (hostname, ipv4) 元组。"""
+def fetch_peers() -> List[Tuple[str, str, Optional[float]]]:
+    """调用 easytier-cli 获取节点列表，返回 (hostname, ipv4, lat_ms) 元组。"""
     try:
         result = subprocess.run(
             ["easytier-cli", "--output", "json", "peer"],
@@ -199,13 +201,42 @@ def fetch_peers() -> List[Tuple[str, str]]:
     except json.JSONDecodeError:
         return []
 
-    output: List[Tuple[str, str]] = []
+    output: List[Tuple[str, str, Optional[float]]] = []
     for peer in peers:
         ipv4 = peer.get("ipv4")
         hostname = peer.get("hostname") or "<unknown>"
-        if ipv4 and hostname != "Lighthouse":
-            output.append((hostname, ipv4))
+        cost = peer.get("cost")
+        lat_raw = peer.get("lat_ms")
+        lat_ms: Optional[float]
+        if isinstance(lat_raw, (int, float)):
+            lat_ms = float(lat_raw)
+        else:
+            try:
+                lat_ms = float(lat_raw)
+            except (TypeError, ValueError):
+                lat_ms = None
+        if ipv4 and hostname != "Lighthouse" and cost != "Local":
+            output.append((hostname, ipv4, lat_ms))
     return output
+
+
+def format_latency(lat_ms: Optional[float]) -> str:
+    """将延迟（毫秒）格式化为可读字符串。"""
+    if lat_ms is None:
+        return "未知延迟"
+    if lat_ms >= 100:
+        lat_str = f"{lat_ms:.0f}"
+    elif lat_ms >= 10:
+        lat_str = f"{lat_ms:.1f}"
+    else:
+        lat_str = f"{lat_ms:.2f}"
+    return f"{lat_str} ms"
+
+
+def format_peer_label(peer: Tuple[str, str, Optional[float]]) -> str:
+    """格式化节点显示信息。"""
+    host, ip, lat_ms = peer
+    return f"{host} ({ip}) - {format_latency(lat_ms)}"
 
 
 def fetch_adb_devices(env: Dict[str, str]) -> List[Tuple[str, str]]:
@@ -388,13 +419,13 @@ Options:
 
 
 def filter_candidates(
-    items: List[Tuple[str, str]],
+    items: List[T],
     pattern: Optional[str],
-    label_builder,
-    matcher,
+    label_builder: Callable[[T], str],
+    matcher: Callable[[T, str], bool],
     not_found_message: str,
     multiple_message: str,
-) -> Tuple[List[Tuple[str, str]], bool]:
+) -> Tuple[List[T], bool]:
     """根据 pattern 过滤候选列表，返回过滤结果与是否精确命中单个结果。"""
     if not items:
         return [], False
@@ -458,7 +489,7 @@ def flutter_runx(argv: List[str]) -> int:
     peers, auto_selected = filter_candidates(
         peers,
         node_pattern,
-        lambda item: f"{item[0]} ({item[1]})",
+        format_peer_label,
         lambda item, pat: pat in item[0].lower() or pat in item[1].lower(),
         "未找到匹配的节点",
         "匹配到多个节点：",
@@ -471,15 +502,15 @@ def flutter_runx(argv: List[str]) -> int:
     if auto_selected or len(peers) == 1:
         peer_index = 0
         if not auto_selected:
-            print(f"自动选择节点：{peers[0][0]} ({peers[0][1]})")
+            print(f"自动选择节点：{format_peer_label(peers[0])}")
     else:
-        peer_labels = [f"{host} ({ip})" for host, ip in peers]
+        peer_labels = [format_peer_label(peer) for peer in peers]
         peer_index = prompt_selection("请选择节点：", peer_labels)
         if peer_index is None:
             print("未选择节点，操作已取消。", file=sys.stderr)
             return 1
 
-    _, peer_ip = peers[peer_index]
+    _, peer_ip, _ = peers[peer_index]
     run_env = os.environ.copy()
     run_env["ADB_SERVER_SOCKET"] = f"tcp:{peer_ip}:{adb_port}"
 
