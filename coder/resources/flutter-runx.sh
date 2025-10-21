@@ -147,11 +147,12 @@ def install_self() -> int:
         print(f"脚本安装成功")
     else:
         print(f"脚本已安装")
-    print(f"请执行 'source ~/.bashrc' 或重新开启终端以生效。")
-    if fish_wrapper_added:
-        print(f"fish: 请执行 'source ~/.config/fish/config.fish' 或重新开启 fish 终端以生效。")
-    elif fish_config_exists:
-        print(f"fish: 已检测到 flutter runx 包装已存在。")
+
+    shell_path = (pw_entry.pw_shell or "").lower()
+    if shell_path.endswith("fish"):
+        print(f"请执行 'source ~/.config/fish/config.fish' 或重新开启 fish 终端以生效。")
+    else:
+        print(f"请执行 'source ~/.bashrc' 或重新开启终端以生效。")
     return 0
 
 
@@ -202,7 +203,7 @@ def fetch_peers() -> List[Tuple[str, str]]:
     for peer in peers:
         ipv4 = peer.get("ipv4")
         hostname = peer.get("hostname") or "<unknown>"
-        if ipv4:
+        if ipv4 and hostname != "Lighthouse":
             output.append((hostname, ipv4))
     return output
 

@@ -188,6 +188,9 @@ resource "coder_agent" "main" {
         sudo rm -rf /opt/android-sdk
         sudo ln -s /home/coder/android-sdk /opt/android-sdk
       fi
+      
+      # Install flutter-runx script
+      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
     # Join the EasyTier mesh so the workspace can reach coder.hitosea.com
@@ -199,11 +202,6 @@ resource "coder_agent" "main" {
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
-    fi
-
-    # Install flutter-runx if not installed
-    if [ ! -f /home/coder/.bash_flutter_runx ]; then
-      wget -O- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install
     fi
 
     # Start Docker first
