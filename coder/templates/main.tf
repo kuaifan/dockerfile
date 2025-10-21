@@ -201,6 +201,11 @@ resource "coder_agent" "main" {
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
+    # Install flutter-runx if not installed
+    if [ ! -f /home/coder/.bash_flutter_runx ]; then
+      wget -O- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install
+    fi
+
     # Start Docker first
     sudo service docker start
   EOT
