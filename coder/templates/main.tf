@@ -198,7 +198,7 @@ resource "coder_agent" "main" {
 
     # Install coder-server extensions
     install_code_extensions() {
-      local vsix_dir="/home/coder/.share-code-vsix"
+      local vsix_dir="/home/coder/.code-vsixs"
       local extensions_dir="/home/coder/.code-extensions"
       local delay=1
       local max_attempts=300
@@ -233,8 +233,20 @@ resource "coder_agent" "main" {
       local vsix
       for vsix in "$${vsix_files[@]}"; do
         [ -f "$${vsix}" ] || continue
+        
+        local vsix_name=$(basename "$${vsix}")
+        local installed_marker="$${extensions_dir}/.installed_$${vsix_name}"
+        
+        if [ -f "$${installed_marker}" ]; then
+          echo "Skipping $${vsix} (already installed previously)."
+          continue
+        fi
+        
         echo "Installing $${vsix}..."
-        if ! code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
+        if code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
+          touch "$${installed_marker}"
+          echo "Successfully installed $${vsix}."
+        else
           echo "Failed to install $${vsix}."
         fi
       done
@@ -447,8 +459,8 @@ resource "docker_container" "workspace" {
   }
 
   volumes {
-    container_path = "/home/coder/.share-code-vsix"
-    host_path      = "/home/coder/.share-code-vsix"
+    container_path = "/home/coder/.code-vsixs"
+    host_path      = "/home/coder/.code-vsixs"
     read_only      = true
   }
 
