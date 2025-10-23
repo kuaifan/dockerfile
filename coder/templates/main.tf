@@ -160,9 +160,12 @@ resource "coder_agent" "main" {
       touch /home/coder/.init_done
     fi
 
-    # create workspaces directory
+    # Create necessary directories
     if [ ! -d /home/coder/workspaces ]; then
       mkdir -p /home/coder/workspaces
+    fi
+    if [ ! -d /home/coder/.log ]; then
+      mkdir -p /home/coder/.log
     fi
 
     # Prepare Flutter-specific tooling on persistent storage
@@ -193,10 +196,54 @@ resource "coder_agent" "main" {
       wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
+    # Install coder-server extensions
+    install_code_extensions() {
+      local vsix_dir="/home/coder/.share-code-vsix"
+      local extensions_dir="/home/coder/.code-extensions"
+      local delay=1
+      local max_attempts=300
+
+      if [ ! -d "$${vsix_dir}" ]; then
+        return
+      fi
+      mkdir -p "$${extensions_dir}"
+
+      local attempt
+      for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        if command -v code-server >/dev/null 2>&1; then
+          echo "code-server detected after $${attempt} attempt(s)."
+          sleep 5
+          break
+        fi
+        echo "Waiting for code-server installation... attempt $${attempt}/$${max_attempts}"
+        sleep "$${delay}"
+      done
+
+      if ! command -v code-server >/dev/null 2>&1; then
+        echo "code-server unavailable after $$(($${max_attempts} * $${delay})) seconds; skipping extension installation."
+        return
+      fi
+
+      local vsix_files=("$${vsix_dir}"/*.vsix)
+      if [ "$${vsix_files[0]}" = "$${vsix_dir}/*.vsix" ]; then
+        echo "No VSIX files found under $${vsix_dir}; nothing to install."
+        return
+      fi
+
+      local vsix
+      for vsix in "$${vsix_files[@]}"; do
+        [ -f "$${vsix}" ] || continue
+        echo "Installing $${vsix}..."
+        if ! code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
+          echo "Failed to install $${vsix}."
+        fi
+      done
+    }
+    install_code_extensions </dev/null >/home/coder/.log/install-code-extensions.log 2>&1 &
+
     # Join the EasyTier mesh so the workspace can reach coder.hitosea.com
     if ! pgrep -x easytier-core >/dev/null 2>&1; then
-      mkdir -p /home/coder/log
-      sudo nohup easytier-core --hostname $${CODER_WORKSPACE_OWNER_NAME}/$${HOSTNAME} --network-name hitosea --network-secret ajax9999 -d -p tcp://coder.hitosea.com:11010 >/home/coder/log/easytier-core.log 2>&1 &
+      sudo nohup easytier-core --hostname $${CODER_WORKSPACE_OWNER_NAME}/$${HOSTNAME} --network-name hitosea --network-secret ajax9999 -d -p tcp://coder.hitosea.com:11010 >/home/coder/.log/easytier-core.log 2>&1 &
     fi
 
     # Install oh-my-bash if not installed
@@ -300,10 +347,6 @@ module "code-server" {
   folder          = local.repo_primary_folder
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
-  extensions      = [
-    "github.copilot-chat",
-    "openai.chatgpt"
-  ]
   extensions_dir  = "/home/coder/.code-extensions"
   settings        = {
     "terminal.integrated.defaultProfile.linux" = "fish"
@@ -401,6 +444,12 @@ resource "docker_container" "workspace" {
     container_path = "/var/lib/docker"
     volume_name    = docker_volume.docker_volume.name
     read_only      = false
+  }
+
+  volumes {
+    container_path = "/home/coder/.share-code-vsix"
+    host_path      = "/home/coder/.share-code-vsix"
+    read_only      = true
   }
 
   labels {
