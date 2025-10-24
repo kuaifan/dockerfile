@@ -14,8 +14,10 @@ jobs:
     name: Discover directories
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.collect.outputs.matrix }}
-      has_targets: ${{ steps.collect.outputs.has_targets }}
+      base_matrix: ${{ steps.collect.outputs.base_matrix }}
+      variant_matrix: ${{ steps.collect.outputs.variant_matrix }}
+      has_base_targets: ${{ steps.collect.outputs.has_base_targets }}
+      has_variant_targets: ${{ steps.collect.outputs.has_variant_targets }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,14 +58,62 @@ jobs:
           set -euo pipefail
           bash ./build.sh list >>"$GITHUB_OUTPUT"
 
-  build:
+  build-base:
     needs: discover
     name: Build ${{ matrix.label }}
-    if: ${{ needs.discover.outputs.has_targets == 'true' }}
+    if: ${{ needs.discover.outputs.has_base_targets == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.discover.outputs.base_matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.PERSONAL_TOKEN }}
+
+      - name: Update submodules
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote --recursive
+
+      - name: Download private repos
+        uses: actions/download-artifact@v4
+        with:
+          name: private-repo
+          path: private-repo
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          bash ./build.sh build "${{ matrix.dir }}" "${{ matrix.dockerfile }}"
+
+  build-variants:
+    needs: [discover, build-base]
+    name: Build ${{ matrix.label }}
+    if: |
+      always() &&
+      needs.discover.outputs.has_variant_targets == 'true' &&
+      (needs.build-base.result == 'success' || needs.build-base.result == 'skipped')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.variant_matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

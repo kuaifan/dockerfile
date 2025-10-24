@@ -22,7 +22,8 @@ case "${cmd}" in
     list)
         python3 - <<'PY'
 import json, os, glob
-entries = []
+base_entries = []
+variant_entries = []
 for entry in sorted(os.listdir(".")):
     if not os.path.isdir(entry):
         continue
@@ -36,10 +37,17 @@ for entry in sorted(os.listdir(".")):
         if base != "Dockerfile" and base.endswith(".Dockerfile"):
             variant = base[: -len(".Dockerfile")]
         label = entry if not variant else f"{entry} ({variant})"
-        entries.append({"dir": entry, "dockerfile": base, "variant": variant, "label": label})
-matrix = {"include": entries}
-print(f"matrix={json.dumps(matrix)}")
-print(f"has_targets={'true' if entries else 'false'}")
+        entry_data = {"dir": entry, "dockerfile": base, "variant": variant, "label": label}
+        if base == "Dockerfile":
+            base_entries.append(entry_data)
+        else:
+            variant_entries.append(entry_data)
+base_matrix = {"include": base_entries}
+variant_matrix = {"include": variant_entries}
+print(f"base_matrix={json.dumps(base_matrix)}")
+print(f"variant_matrix={json.dumps(variant_matrix)}")
+print(f"has_base_targets={'true' if base_entries else 'false'}")
+print(f"has_variant_targets={'true' if variant_entries else 'false'}")
 PY
         ;;
     build)
