@@ -98,6 +98,7 @@ get_extensions() {
 }
 
 # 查找与 VS Code 版本兼容的扩展版本
+# 优先返回稳定版（x.y.z 格式），只有在没有稳定版时才返回预览版
 find_compatible_version() {
     local extension_id="$1"
     local vscode_version="$2"
@@ -117,9 +118,38 @@ find_compatible_version() {
             \"flags\": 4112
         }")
 
+    # 首先尝试查找稳定版（x.y.z 格式，最多3段）
+    local stable_version
+    stable_version=$(echo "$response" | jq -r --arg vscode_version "$vscode_version" '
+        .results[0].extensions[0].versions[]? |
+        select(.version | test("^[0-9]+\\.[0-9]+\\.[0-9]*$")) |
+        select(.version | length < 8) |
+        {
+            version: .version,
+            engine: (.properties[]? | select(.key == "Microsoft.VisualStudio.Code.Engine") | .value)
+        } |
+        select(.engine != null) |
+        select(.engine | ltrimstr("^") | split(".") |
+            map(split("-")[0] | tonumber?) as $engine_parts |
+            ($vscode_version | split(".") | map(tonumber)) as $vscode_parts |
+            (
+                ($engine_parts[0] // 0) < $vscode_parts[0] or
+                (($engine_parts[0] // 0) == $vscode_parts[0] and ($engine_parts[1] // 0) < $vscode_parts[1]) or
+                (($engine_parts[0] // 0) == $vscode_parts[0] and ($engine_parts[1] // 0) == $vscode_parts[1] and ($engine_parts[2] // 0) <= $vscode_parts[2])
+            )
+        ) |
+        .version' 2>/dev/null | head -n 1)
+
+    # 如果找到稳定版，直接返回
+    if [ -n "$stable_version" ]; then
+        echo "$stable_version"
+        return 0
+    fi
+
+    # 没有稳定版时，查找预览版（x.y.z.w... 格式，超过3段）
     echo "$response" | jq -r --arg vscode_version "$vscode_version" '
         .results[0].extensions[0].versions[]? |
-        select(.version | test("^[0-9]+\\.[0-9]+\\.[0-9.]+$")) |
+        select(.version | test("^[0-9]+\\.[0-9]+\\.[0-9]*$")) |
         {
             version: .version,
             engine: (.properties[]? | select(.key == "Microsoft.VisualStudio.Code.Engine") | .value)
@@ -156,10 +186,24 @@ download_extension() {
     fi
     final_path="$target_dir/$package_name.vsix"
 
-    # 检查文件是否已存在
+    # 检查目标版本是否已存在
     if [ -f "$final_path" ]; then
         echo "  ✓ $extension_id v$version 已存在，跳过下载"
         return 0
+    fi
+
+    # 删除该扩展的所有旧版本（不同版本号的文件）
+    local old_versions_count=0
+    while IFS= read -r old_file; do
+        if [ -f "$old_file" ]; then
+            echo "  - 删除旧版本：$(basename "$old_file")"
+            rm -f "$old_file"
+            old_versions_count=$((old_versions_count + 1))
+        fi
+    done < <(find "$target_dir" -maxdepth 1 -type f -name "${extension_id}-*.vsix" 2>/dev/null)
+
+    if [ $old_versions_count -gt 0 ]; then
+        echo "  已删除 $old_versions_count 个旧版本"
     fi
 
     echo "正在下载 $extension_id v$version..."
@@ -271,7 +315,6 @@ fi
 echo ""
 echo "VS Code 版本：$VSCODE_VERSION"
 echo "下载目录：$SCRIPT_DIR"
-echo ""
 
 # 错误计数器
 FAILED=0
