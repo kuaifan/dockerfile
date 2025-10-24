@@ -198,16 +198,18 @@ resource "coder_agent" "main" {
 
     # Install coder-server extensions
     install_code_extensions() {
-      local vsix_dir="/home/coder/.code-vsixs"
+      local vsix_base_dir="/home/coder/.code-vsixs"
       local extensions_dir="/home/coder/.code-extensions"
+      local env_key="$${WORKSPACE_IMAGE_KEY:-default}"
       local delay=1
       local max_attempts=300
 
-      if [ ! -d "$${vsix_dir}" ]; then
+      if [ ! -d "$${vsix_base_dir}" ]; then
         return
       fi
       mkdir -p "$${extensions_dir}"
 
+      # Wait for code-server to be available
       local attempt
       for ((attempt = 1; attempt <= max_attempts; attempt++)); do
         if command -v code-server >/dev/null 2>&1; then
@@ -224,32 +226,54 @@ resource "coder_agent" "main" {
         return
       fi
 
-      local vsix_files=("$${vsix_dir}"/*.vsix)
-      if [ "$${vsix_files[0]}" = "$${vsix_dir}/*.vsix" ]; then
-        echo "No VSIX files found under $${vsix_dir}; nothing to install."
-        return
+      # Function to install extensions from a directory
+      install_from_dir() {
+        local dir="$1"
+        local dir_name=$(basename "$${dir}")
+
+        if [ ! -d "$${dir}" ]; then
+          echo "Directory $${dir} does not exist, skipping."
+          return
+        fi
+
+        local vsix_files=("$${dir}"/*.vsix)
+        if [ "$${vsix_files[0]}" = "$${dir}/*.vsix" ]; then
+          echo "No VSIX files found in $${dir}, skipping."
+          return
+        fi
+
+        echo "Installing extensions from $${dir_name}..."
+        local vsix
+        for vsix in "$${vsix_files[@]}"; do
+          [ -f "$${vsix}" ] || continue
+
+          local vsix_name=$(basename "$${vsix}")
+          local installed_marker="$${extensions_dir}/.installed_$${vsix_name}"
+
+          if [ -f "$${installed_marker}" ]; then
+            echo "  Skipping $${vsix_name} (already installed previously)."
+            continue
+          fi
+
+          echo "  Installing $${vsix_name}..."
+          if code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
+            touch "$${installed_marker}"
+            echo "  Successfully installed $${vsix_name}."
+          else
+            echo "  Failed to install $${vsix_name}."
+          fi
+        done
+      }
+
+      # Install common extensions first
+      install_from_dir "$${vsix_base_dir}/common"
+
+      # Install environment-specific extensions (skip for default environment)
+      if [ "$${env_key}" != "default" ]; then
+        install_from_dir "$${vsix_base_dir}/$${env_key}"
       fi
 
-      local vsix
-      for vsix in "$${vsix_files[@]}"; do
-        [ -f "$${vsix}" ] || continue
-        
-        local vsix_name=$(basename "$${vsix}")
-        local installed_marker="$${extensions_dir}/.installed_$${vsix_name}"
-        
-        if [ -f "$${installed_marker}" ]; then
-          echo "Skipping $${vsix} (already installed previously)."
-          continue
-        fi
-        
-        echo "Installing $${vsix}..."
-        if code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
-          touch "$${installed_marker}"
-          echo "Successfully installed $${vsix}."
-        else
-          echo "Failed to install $${vsix}."
-        fi
-      done
+      echo "Extension installation completed for environment: $${env_key}"
     }
     install_code_extensions </dev/null >/home/coder/.log/install-code-extensions.log 2>&1 &
 
