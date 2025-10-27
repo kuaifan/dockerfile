@@ -79,7 +79,7 @@ PY
         # 判断是否存在 config 文件
         if [ -f "$configFile" ]; then
             echo "::notice::读取配置文件 ${configFile}"
-            while IFS= read -r line; do
+            while IFS= read -r line || [[ -n $line ]]; do
                 if [[ $line =~ "imageName" ]]; then
                     imageName=${line#*=}
                     continue
