@@ -51,6 +51,14 @@ locals {
   workspace_selection_image_key  = trimspace(data.coder_parameter.workspace_image.value)
   workspace_effective_image_key  = local.workspace_selection_image_key != "" ? local.workspace_selection_image_key : local.workspace_default_image_key
   workspace_final_image          = lookup(local.workspace_image_map, local.workspace_effective_image_key, element(local.workspace_image_options, 0).image)
+  jetbrains_ide_defaults = {
+    default = "IU"
+    golang  = "GO"
+    php     = "PS"
+    python  = "PY"
+    flutter = "IU"
+  }
+  jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
 
   repo_url_lines      = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
   repo_url_inputs     = [for line in local.repo_url_lines : line if line != ""]
@@ -398,6 +406,16 @@ module "cursor" {
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
   folder      = local.repo_primary_folder
+}
+
+# See https://registry.coder.com/modules/coder/jetbrains
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+  folder   = local.repo_primary_folder
+  default  = [local.jetbrains_default_ide]
 }
 
 resource "docker_volume" "home_volume" {
