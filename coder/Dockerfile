@@ -48,6 +48,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     lsof \
     socat \
     iputils-ping \
+    net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Enables Docker starting with systemd
