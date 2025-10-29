@@ -383,19 +383,8 @@ module "git-clone" {
   version     = "~> 1.0"
 }
 
-# See https://registry.coder.com/modules/coder/cursor
-module "cursor" {
-  order       = 1
-  count       = data.coder_workspace.me.start_count
-  source      = "registry.coder.com/coder/cursor/coder"
-  version     = "~> 1.0"
-  agent_id    = coder_agent.main.id
-  folder      = local.repo_primary_folder
-}
-
 # See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
-  order           = 2
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
@@ -410,9 +399,17 @@ module "code-server" {
   }
 }
 
+# See https://registry.coder.com/modules/coder/cursor
+module "cursor" {
+  count       = data.coder_workspace.me.start_count
+  source      = "registry.coder.com/coder/cursor/coder"
+  version     = "~> 1.0"
+  agent_id    = coder_agent.main.id
+  folder      = local.repo_primary_folder
+}
+
 # See https://registry.coder.com/modules/coder/jetbrains
 module "jetbrains" {
-  order       = 3
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/jetbrains/coder"
   version  = "~> 1.0"
