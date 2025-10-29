@@ -19,7 +19,8 @@ RUN set -eux; \
         php${PHP_VERSION}-sqlite3 \
         php${PHP_VERSION}-xml \
         php${PHP_VERSION}-zip \
-        php${PHP_VERSION}-opcache; \
+        php${PHP_VERSION}-opcache \
+        composer; \
     update-alternatives --set php /usr/bin/php${PHP_VERSION}; \
     update-alternatives --set phar /usr/bin/phar${PHP_VERSION}; \
     apt-get clean; \

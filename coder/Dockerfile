@@ -21,6 +21,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     && apt-get update \
     && apt-get install --yes --no-install-recommends --no-install-suggests \
     bash \
+    bash-completion \
     build-essential \
     containerd.io \
     curl \
@@ -30,6 +31,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     docker-compose-plugin \
     fish \
     git \
+    git-lfs \
     htop \
     jq \
     locales \
@@ -49,6 +51,10 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     socat \
     iputils-ping \
     net-tools \
+    openssh-client \
+    traceroute \
+    dnsutils \
+    tcpdump \
     && rm -rf /var/lib/apt/lists/*
 
 # Enables Docker starting with systemd
