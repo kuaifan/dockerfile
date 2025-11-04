@@ -50,6 +50,9 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     lsof \
     socat \
     iputils-ping \
+    iproute2 \
+    ncat \
+    less \
     net-tools \
     openssh-client \
     traceroute \
