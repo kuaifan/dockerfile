@@ -34,6 +34,11 @@ locals {
       version    = format("python-%s", local.workspace_image_version)
     },
     {
+      key        = "pgp"
+      label      = "PHP + Go + Python 环境"
+      version    = format("pgp-%s", local.workspace_image_version)
+    },
+    {
       key        = "flutter"
       label      = "Flutter 环境"
       version    = format("flutter-%s", local.workspace_image_version)
@@ -56,6 +61,7 @@ locals {
     golang  = "GO"
     php     = "PS"
     python  = "PY"
+    pgp     = "IU"
     flutter = "IU"
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
@@ -396,6 +402,7 @@ module "code-server" {
     "terminal.integrated.defaultProfile.linux" = "fish"
     "workbench.colorTheme" = "Default Dark Modern"
     "window.menuBarVisibility" = "classic"
+    "remote.autoForwardPorts" = false
   }
 }
 
