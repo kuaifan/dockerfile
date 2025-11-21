@@ -283,7 +283,12 @@ resource "coder_agent" "main" {
       install_from_dir "$${vsix_base_dir}/common"
 
       # Install environment-specific extensions (skip for default environment)
-      if [ "$${env_key}" != "default" ]; then
+      if [ "$${env_key}" = "pgp" ]; then
+        # Combined environment pulls PHP + Go + Python extensions
+        for lang_dir in php golang python; do
+          install_from_dir "$${vsix_base_dir}/$${lang_dir}"
+        done
+      elif [ "$${env_key}" != "default" ]; then
         install_from_dir "$${vsix_base_dir}/$${env_key}"
       fi
 
