@@ -58,6 +58,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     traceroute \
     dnsutils \
     tcpdump \
+    ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
 # Enables Docker starting with systemd
