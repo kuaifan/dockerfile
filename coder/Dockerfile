@@ -64,6 +64,9 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
 # Enables Docker starting with systemd
 RUN systemctl enable docker
 
+# Create a symlink for python pointing to python3
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 # Create a symlink for standalone docker-compose usage
 RUN ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose
 
