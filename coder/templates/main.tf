@@ -408,6 +408,7 @@ module "code-server" {
     "workbench.colorTheme" = "Default Dark Modern"
     "window.menuBarVisibility" = "classic"
     "remote.autoForwardPorts" = false
+    "git.autoRepositoryDetection" = "subFolders"
   }
 }
 
