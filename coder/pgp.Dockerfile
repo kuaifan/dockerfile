@@ -36,6 +36,8 @@ RUN set -eux; \
     tar -C /usr/local -xzf "${tmp_tar}"; \
     rm -f "${tmp_tar}"; \
     install -d -o coder -g coder /home/coder/go; \
+    GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/air-verse/air@latest; \
+    GOBIN=/usr/local/bin /usr/local/go/bin/go install golang.org/x/tools/gopls@latest; \
     add-apt-repository -y ppa:ondrej/php; \
     apt-get update; \
     apt-get install --yes --no-install-recommends --no-install-suggests \
