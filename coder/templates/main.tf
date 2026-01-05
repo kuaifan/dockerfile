@@ -181,6 +181,9 @@ resource "coder_agent" "main" {
     if [ ! -d /home/coder/.log ]; then
       mkdir -p /home/coder/.log
     fi
+    if [ ! -d /home/coder/go ]; then
+      mkdir -p /home/coder/go
+    fi
 
     # Prepare Flutter-specific tooling on persistent storage
     if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
@@ -306,6 +309,11 @@ resource "coder_agent" "main" {
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
+    # Install Claude Code CLI if not installed
+    if ! command -v claude >/dev/null 2>&1; then
+      curl -fsSL https://claude.ai/install.sh | bash
+    fi
+
     # Start Docker first
     sudo service docker start
   EOT
@@ -405,6 +413,13 @@ module "code-server" {
   extensions_dir  = "/home/coder/.code-extensions"
   settings        = {
     "terminal.integrated.defaultProfile.linux" = "fish"
+    "terminal.integrated.profiles.linux" = {
+      "Claude": {
+        "path": "claude",
+        "args": [],
+        "icon": "robot"
+      }
+    }
     "workbench.colorTheme" = "Default Dark Modern"
     "window.menuBarVisibility" = "classic"
     "remote.autoForwardPorts" = false

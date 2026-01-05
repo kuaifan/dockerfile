@@ -69,7 +69,7 @@ get_vscode_version() {
 # 格式：名称|子目录|扩展列表（空格分隔）
 # 注意：这些扩展优化用于 code-server 远程环境，重点考虑性能和实用性
 declare -a EXTENSION_GROUPS=(
-    "通用|common|GitHub.copilot GitHub.copilot-chat openai.chatgpt anthropic.claude-code donjayamanne.githistory mhutchie.git-graph dbaeumer.vscode-eslint esbenp.prettier-vscode usernamehw.errorlens streetsidesoftware.code-spell-checker aaron-bond.better-comments christian-kohler.path-intellisense nonoroazoro.syncing oderwat.indent-rainbow wayou.vscode-todo-highlight formulahendry.code-runner ms-azuretools.vscode-docker redhat.vscode-yaml"
+    "通用|common|GitHub.copilot GitHub.copilot-chat openai.chatgpt anthropic.claude-code donjayamanne.githistory mhutchie.git-graph dbaeumer.vscode-eslint esbenp.prettier-vscode usernamehw.errorlens streetsidesoftware.code-spell-checker aaron-bond.better-comments christian-kohler.path-intellisense nonoroazoro.syncing oderwat.indent-rainbow wayou.vscode-todo-highlight formulahendry.code-runner ms-azuretools.vscode-docker redhat.vscode-yaml bradlc.vscode-tailwindcss"
     "Golang|golang|golang.go"
     "PHP|php|bmewburn.vscode-intelephense-client xdebug.php-debug"
     "Python|python|ms-python.python ms-python.vscode-pylance ms-python.black-formatter ms-python.isort"

@@ -95,4 +95,9 @@ ENV GOROOT=/usr/local/go
 ENV GOPATH=/home/coder/go
 ENV PATH=/usr/local/go/bin:/home/coder/go/bin:${PATH}
 
+# Add Go environment to skel so new home volumes get correct settings
+RUN echo 'export GOROOT=/usr/local/go' >> /etc/skel/.bashrc && \
+    echo 'export GOPATH=/home/coder/go' >> /etc/skel/.bashrc && \
+    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /etc/skel/.bashrc
+
 USER coder
