@@ -419,7 +419,7 @@ module "code-server" {
   settings        = {
     "terminal.integrated.defaultProfile.linux" = "fish"
     "terminal.integrated.profiles.linux" = {
-      "Claude": {
+      "Claude Code": {
         "path": "claude",
         "args": [],
         "icon": "robot"
