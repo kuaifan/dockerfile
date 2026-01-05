@@ -316,6 +316,11 @@ resource "coder_agent" "main" {
 
     # Start Docker first
     sudo service docker start
+
+    # Setup daily docker prune cron job at 5:00 AM (clean dangling images only)
+    sudo service cron start
+    CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /home/coder/.log/docker-prune.log 2>&1"
+    (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
   EOT
   shutdown_script = <<-EOT
     set -e
