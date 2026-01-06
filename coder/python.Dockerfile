@@ -1,44 +1,21 @@
 ARG BASE_IMAGE=kuaifan/coder:latest
-FROM nestybox/ubuntu-jammy-docker:latest
+FROM ${BASE_IMAGE}
 
 ARG PYTHON_VERSION=3.14.0
 
 USER root
 
+# 仅安装基础运行环境所需的极简依赖
 RUN set -eux; \
     apt-get update; \
-    apt-get install --yes --no-install-recommends --no-install-suggests \
-        build-essential \
+    apt-get install --yes --no-install-recommends \
         curl \
-        libbz2-dev \
-        libffi-dev \
-        libgdbm-compat-dev \
-        libgdbm-dev \
-        liblzma-dev \
-        libncurses5-dev \
-        libncursesw5-dev \
-        libreadline-dev \
-        libsqlite3-dev \
-        libssl-dev \
-        tk-dev \
-        uuid-dev \
-        wget \
-        xz-utils \
-        zlib1g-dev; \
-    curl -fsSL "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz" -o /tmp/Python.tgz; \
-    tar -xf /tmp/Python.tgz -C /tmp; \
-    cd /tmp/Python-${PYTHON_VERSION}; \
-    ./configure --enable-optimizations --with-ensurepip=install --prefix=/usr/local; \
-    make -j "$(nproc)"; \
-    make altinstall; \
-    update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.14 1; \
-    update-alternatives --set python3 /usr/local/bin/python3.14; \
-    update-alternatives --install /usr/bin/pip3 pip3 /usr/local/bin/pip3.14 1; \
-    update-alternatives --set pip3 /usr/local/bin/pip3.14; \
-    /usr/local/bin/python3.14 -m pip install --upgrade pip; \
-    cd /; \
-    rm -rf /tmp/Python-${PYTHON_VERSION} /tmp/Python.tgz; \
+        ca-certificates; \
+    # 安装 uv
+    curl -fsSL https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh; \
+    # 清理缓存
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
+# 切换到非 root 用户
 USER coder

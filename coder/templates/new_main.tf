@@ -306,6 +306,12 @@ SETTINGSEOF
     echo "Startup script completed! Running as user: $(whoami)"
     echo "You can now use: claude --dangerously-skip-permissions"
 
+    mkdir -p /home/${local.username}/go
+    mkdir -p /workspace/project
+    echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
+    echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
+    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
+    
     if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
       if [ ! -x /workspace/flutter/bin/flutter ]; then
         sudo rm -rf /workspace/flutter
@@ -717,7 +723,7 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = local.repo_primary_folder
+  folder          = "/workspace/project"
   agent_id        = coder_agent.main.id
   settings        = {
     "terminal.integrated.defaultProfile.linux" = "fish"
@@ -740,7 +746,7 @@ module "cursor" {
   source      = "registry.coder.com/coder/cursor/coder"
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
-  folder      = local.repo_primary_folder
+  folder      = "/workspace/project"
 }
 
 # See https://registry.coder.com/modules/coder/jetbrains
@@ -749,6 +755,6 @@ module "jetbrains" {
   source   = "registry.coder.com/coder/jetbrains/coder"
   version  = "~> 1.0"
   agent_id = coder_agent.main.id
-  folder   = local.repo_primary_folder
+  folder   = "/workspace/project"
   default  = [local.jetbrains_default_ide]
 }

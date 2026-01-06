@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=kuaifan/coder:latest
-FROM nestybox/ubuntu-jammy-docker:latest
+FROM ${BASE_IMAGE}
 
 ARG PHP_VERSION=8.4
 

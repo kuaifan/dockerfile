@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=kuaifan/coder:latest
-FROM nestybox/ubuntu-jammy-docker:latest
+FROM ${BASE_IMAGE}
 
 ARG GO_VERSION=1.25
 ARG GO_DIST_URL=https://go.dev/dl
@@ -33,17 +33,17 @@ RUN set -eux; \
     rm -rf /usr/local/go; \
     tar -C /usr/local -xzf "${tmp_tar}"; \
     rm -f "${tmp_tar}"; \
-    install -d -o coder -g coder /home/coder/go; \
-    GOBIN=/usr/local/bin /usr/local/go/bin/go install github.com/air-verse/air@latest; \
-    GOBIN=/usr/local/bin /usr/local/go/bin/go install golang.org/x/tools/gopls@latest
+    # install -d -o coder -g coder /home/coder/go; \
+    /usr/local/go/bin/go install github.com/air-verse/air@latest; \
+    /usr/local/go/bin/go install golang.org/x/tools/gopls@latest
 
-ENV GOROOT=/usr/local/go
-ENV GOPATH=/home/coder/go
-ENV PATH=/usr/local/go/bin:/home/coder/go/bin:${PATH}
+# ENV GOROOT=/usr/local/go
+# ENV GOPATH=/home/coder/go
+# ENV PATH=/usr/local/go/bin:/home/coder/go/bin:${PATH}
 
-# Add Go environment to skel so new home volumes get correct settings
-RUN echo 'export GOROOT=/usr/local/go' >> /etc/skel/.bashrc && \
-    echo 'export GOPATH=/home/coder/go' >> /etc/skel/.bashrc && \
-    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /etc/skel/.bashrc
+# # Add Go environment to skel so new home volumes get correct settings
+# RUN echo 'export GOROOT=/usr/local/go' >> /etc/skel/.bashrc && \
+#     echo 'export GOPATH=/home/coder/go' >> /etc/skel/.bashrc && \
+#     echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /etc/skel/.bashrc
 
 USER coder

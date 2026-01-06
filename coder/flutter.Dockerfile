@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=kuaifan/coder:latest
-FROM nestybox/ubuntu-jammy-docker:latest
+FROM ${BASE_IMAGE}
 
 ARG FLUTTER_VERSION=3.35.6
 
@@ -10,7 +10,7 @@ ARG ANDROID_NDK_VERSION=27.0.12077973
 ARG ANDROID_CMAKE_VERSION=3.22.1
 
 USER root
-
+ENV DEBIAN_FRONTEND=noninteractive
 RUN set -eux; \
     apt-get update; \
     apt-get install --yes --no-install-recommends --no-install-suggests \
@@ -22,10 +22,9 @@ RUN set -eux; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
-RUN set -eux; \
-    rm -rf /opt/flutter; \
-    git clone --depth 1 --branch "${FLUTTER_VERSION}" https://github.com/flutter/flutter.git /opt/flutter; \
-    chown -R coder:coder /opt/flutter
+RUN git clone --depth 1 --branch "${FLUTTER_VERSION}" https://github.com/flutter/flutter.git /opt/flutter
+
+RUN chown -R coder:coder /opt/flutter
 
 RUN set -eux; \
     sdk_root=/opt/android-sdk; \
