@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=kuaifan/coder:latest
-FROM ${BASE_IMAGE}
+FROM nestybox/ubuntu-jammy-docker:latest
 
 ARG PYTHON_VERSION=3.14.0
 
