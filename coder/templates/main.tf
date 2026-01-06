@@ -309,9 +309,16 @@ resource "coder_agent" "main" {
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
-    # Install Claude Code CLI if not installed
-    if ! command -v claude >/dev/null 2>&1; then
-      curl -fsSL https://claude.ai/install.sh | bash
+    # Install Claude Code CLI if not installed (async, non-blocking)
+    if [ ! -f /home/coder/.local/bin/claude ]; then
+      (
+        echo "Installing Claude Code CLI..."
+        if curl -fsSL https://claude.ai/install.sh | bash >/home/coder/.log/claude-install.log 2>&1; then
+          echo "Claude Code CLI installed successfully"
+        else
+          echo "Failed to install Claude Code CLI"
+        fi
+      ) &
     fi
 
     # Start Docker first
