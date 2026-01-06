@@ -137,8 +137,6 @@ resource "coder_agent" "main" {
       sudo apt-get update -qq && sudo apt-get install -y -qq gh
     fi
 
-    disown
-
     # 使用当前用户的 HOME 目录（现在以非 root 用户运行）
     CLAUDE_DIR="$HOME/.claude"
 
@@ -308,9 +306,6 @@ SETTINGSEOF
 
     mkdir -p /home/${local.username}/go
     mkdir -p /workspace/project
-    echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
-    echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
-    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
     
     if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
       if [ ! -x /workspace/flutter/bin/flutter ]; then
@@ -423,6 +418,9 @@ SETTINGSEOF
     if [ ! -d /home/${local.username}/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
+    echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
+    echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
+    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
     CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /tmp/docker-prune.log 2>&1"
     (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
   EOT
@@ -577,7 +575,7 @@ resource "docker_container" "workspace" {
   entrypoint = ["sh", "-c", <<-EOT
     set -e
     USERNAME="${local.username}"
-
+    
     # 安装 sudo（如果不存在）
     if ! command -v sudo &>/dev/null; then
       apt-get update -qq && apt-get install -y -qq sudo
@@ -611,8 +609,9 @@ resource "docker_container" "workspace" {
     # 以非 root 用户身份启动 coder agent
     export HOME=/home/$USERNAME
     cd /home/$USERNAME
+    echo '${replace(replace(coder_agent.main.init_script, "'", "'\"'\"'"), "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}' > /tmp/start.sh
     exec sudo -u $USERNAME --preserve-env=CODER_AGENT_TOKEN,HOME \
-      sh -c '${replace(replace(coder_agent.main.init_script, "'", "'\"'\"'"), "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}'
+      bash -x /tmp/start.sh
   EOT
   ]
 
