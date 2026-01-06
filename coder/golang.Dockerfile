@@ -46,4 +46,4 @@ RUN set -eux; \
 #     echo 'export GOPATH=/home/coder/go' >> /etc/skel/.bashrc && \
 #     echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /etc/skel/.bashrc
 
-USER coder
+# USER coder

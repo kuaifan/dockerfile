@@ -24,8 +24,6 @@ RUN set -eux; \
 
 RUN git clone --depth 1 --branch "${FLUTTER_VERSION}" https://github.com/flutter/flutter.git /opt/flutter
 
-RUN chown -R coder:coder /opt/flutter
-
 RUN set -eux; \
     sdk_root=/opt/android-sdk; \
     mkdir -p "${sdk_root}/cmdline-tools"; \
@@ -40,15 +38,14 @@ RUN set -eux; \
         "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
         "platforms;${ANDROID_PLATFORM}" \
         "ndk;${ANDROID_NDK_VERSION}" \
-        "cmake;${ANDROID_CMAKE_VERSION}"; \
-    chown -R coder:coder "${sdk_root}"
+        "cmake;${ANDROID_CMAKE_VERSION}"; 
 
 ENV FLUTTER_HOME=/opt/flutter \
     ANDROID_HOME=/opt/android-sdk \
     ANDROID_SDK_ROOT=/opt/android-sdk \
     PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}
 
-USER coder
+# USER coder
 
 RUN set -eux; \
     flutter config --no-analytics; \

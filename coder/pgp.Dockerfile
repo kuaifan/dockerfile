@@ -58,4 +58,4 @@ RUN set -eux; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 
-USER coder
+# USER coder

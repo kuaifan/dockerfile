@@ -18,4 +18,4 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # 切换到非 root 用户
-USER coder
+# USER coder

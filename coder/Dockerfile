@@ -62,4 +62,4 @@ ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
 # Switch to the `coder` user and set up their environment
-USER coder
+# USER coder
