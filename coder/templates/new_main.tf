@@ -421,6 +421,12 @@ SETTINGSEOF
     echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
     echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
     echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
+    if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
+      echo 'export FLUTTER_HOME=/opt/flutter' >> /home/${local.username}/.bashrc
+      echo 'export ANDROID_HOME=/opt/android-sdk' >> /home/${local.username}/.bashrc
+      echo 'export ANDROID_SDK_ROOT=/opt/android-sdk' >> /home/${local.username}/.bashrc
+      echo 'export PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}' >> /home/${local.username}/.bashrc
+    fi
     CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /tmp/docker-prune.log 2>&1"
     (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
   EOT
