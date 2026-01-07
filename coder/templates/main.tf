@@ -66,42 +66,10 @@ locals {
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
 
-  repo_url_lines      = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
-  repo_url_inputs     = [for line in local.repo_url_lines : line if line != ""]
-  repo_primary_folder = length(local.repo_url_inputs) == 1 ? "/home/coder/workspaces/${trimsuffix(basename(element(local.repo_url_inputs, 0)), ".git")}" : "/home/coder/workspaces"
-
-  docker_port_lines   = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
-  docker_port_inputs  = [for line in local.docker_port_lines : line if line != ""]
-  docker_ports = [
-    for entry in local.docker_port_inputs : trimspace(entry)
-    if length(regexall("(?i)^\\d+(?::\\d+)?(?:/(tcp|udp))?$", trimspace(entry))) > 0
-  ]
-  docker_port_entries = [
-    for entry in local.docker_ports : {
-      numbers  = regexall("\\d+", entry)
-      protocol = lower(trimspace(try(element(split("/", entry), 1), "tcp")))
-    }
-    if length(regexall("\\d+", entry)) > 0
-  ]
-  docker_port_mappings = [
-    for entry in local.docker_port_entries : {
-      external = tonumber(element(entry.numbers, 0))
-      internal = tonumber(try(element(entry.numbers, 1), element(entry.numbers, 0)))
-      protocol = contains(["tcp", "udp"], entry.protocol) ? entry.protocol : "tcp"
-    }
-  ]
-}
-
-variable "docker_socket" {
-  default     = ""
-  description = "(Optional) Docker socket URI"
-  type        = string
 }
 
 provider "coder" {}
-provider "docker" {
-  host = var.docker_socket != "" ? var.docker_socket : null
-}
+provider "docker" {}
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
@@ -125,44 +93,6 @@ data "coder_parameter" "workspace_image" {
   }
 }
 
-data "coder_parameter" "repo_url" {
-  default      = ""
-  description  = "（可选）输入需要克隆到工作区的 Git 仓库 URL（每行一个）。"
-  display_name = "Git 仓库"
-  mutable      = true
-  name         = "repo_url"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 1
-  styling = jsonencode({
-    placeholder = <<-EOT
-    例如
-    https://github.com/username/repository.git
-    https://gitlab.com/org/project.git
-    EOT
-  })
-}
-
-data "coder_parameter" "docker_ports" {
-  default      = ""
-  description  = "（可选）列出需要从工作区容器暴露的端口，每行一个端口或映射。"
-  display_name = "Docker 端口"
-  mutable      = true
-  name         = "docker_ports"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 2
-  styling = jsonencode({
-    placeholder = <<-EOT
-    例如
-    80
-    443
-    8080:80
-    53/udp
-    10053:53/udp
-    EOT
-  })
-}
 
 resource "coder_agent" "main" {
   arch            = data.coder_provisioner.me.arch
@@ -404,15 +334,6 @@ resource "coder_agent" "main" {
   }
 }
 
-# See https://registry.coder.com/modules/coder/git-clone
-module "git-clone" {
-  for_each    = data.coder_workspace.me.start_count > 0 ? { for idx, url in local.repo_url_inputs : "${tostring(data.coder_workspace.me.start_count)}-${tostring(idx)}" => url } : {}
-  source      = "registry.coder.com/coder/git-clone/coder"
-  agent_id    = coder_agent.main.id
-  url         = each.value
-  base_dir    = "/home/coder/workspaces"
-  version     = "~> 1.0"
-}
 
 # See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
@@ -503,10 +424,20 @@ resource "docker_volume" "docker_volume" {
   }
 }
 
+# 变量定义
+variable "use_sysbox" {
+  type        = bool
+  default     = true
+  description = "使用 Sysbox 运行时实现真正的 Docker-in-Docker（宿主机已安装 Sysbox）"
+}
+
+data "docker_network" "workspace_network" {
+  name = "coder-workspace-network"
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = local.workspace_final_image
-  privileged = true
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
   command = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
@@ -526,7 +457,12 @@ resource "docker_container" "workspace" {
     host = "host.docker.internal"
     ip   = "host-gateway"
   }
+  runtime = var.use_sysbox ? "sysbox-runc" : null
 
+  # 连接到用户专属网络 (用户隔离 - 不同用户在不同网络无法互访)
+  networks_advanced {
+    name = data.docker_network.workspace_network.name
+  }
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
