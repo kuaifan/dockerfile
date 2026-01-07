@@ -44,6 +44,7 @@ locals {
       version    = format("flutter-%s", local.workspace_image_version)
     }
   ]
+  repo_primary_folder = "/home/coder/workspaces/"
   workspace_image_options = [
     for variant in local.workspace_image_variants : {
       name  = variant.label
@@ -444,19 +445,7 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}"
   ]
-
-  dynamic "ports" {
-    for_each = local.docker_port_mappings
-    content {
-      internal = ports.value.internal
-      external = ports.value.external
-      protocol = ports.value.protocol
-    }
-  }
-  host {
-    host = "host.docker.internal"
-    ip   = "host-gateway"
-  }
+  
   runtime = var.use_sysbox ? "sysbox-runc" : null
 
   # 连接到用户专属网络 (用户隔离 - 不同用户在不同网络无法互访)
