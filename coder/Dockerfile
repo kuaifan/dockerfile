@@ -3,20 +3,13 @@ FROM nestybox/ubuntu-jammy-docker:latest
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install the Docker apt repository
-RUN apt-get update \
-    && apt-get upgrade --yes --no-install-recommends --no-install-suggests \
-    && apt-get install --yes --no-install-recommends --no-install-suggests \
-    software-properties-common \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install baseline packages
 RUN add-apt-repository -y ppa:fish-shell/release-4 \
     && add-apt-repository -y ppa:git-core/ppa \
     && apt-get update \
     && apt-get install --yes --no-install-recommends --no-install-suggests \
     bash \
+    ca-certificates \
     bash-completion \
     build-essential \
     curl \
