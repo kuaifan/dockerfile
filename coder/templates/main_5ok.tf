@@ -11,6 +11,61 @@ terraform {
 
 locals {
   username = data.coder_workspace_owner.me.name
+  workspace_image_base     = "kuaifan/coder"
+  workspace_image_version  = "0.0.3"
+  workspace_image_variants = [
+    {
+      key        = "default"
+      label      = "默认环境"
+      version    = local.workspace_image_version
+    },
+    {
+      key        = "golang"
+      label      = "Go 环境"
+      version    = format("golang-%s", local.workspace_image_version)
+    },
+    {
+      key        = "php"
+      label      = "PHP 环境"
+      version    = format("php-%s", local.workspace_image_version)
+    },
+    {
+      key        = "python"
+      label      = "Python 环境"
+      version    = format("python-%s", local.workspace_image_version)
+    },
+    {
+      key        = "pgp"
+      label      = "PHP + Go + Python 环境"
+      version    = format("pgp-%s", local.workspace_image_version)
+    },
+    {
+      key        = "flutter"
+      label      = "Flutter 环境"
+      version    = format("flutter-%s", local.workspace_image_version)
+    }
+  ]
+  workspace_image_options = [
+    for variant in local.workspace_image_variants : {
+      name  = variant.label
+      value = variant.key
+      image = format("%s:%s", local.workspace_image_base, variant.version)
+    }
+  ]
+  workspace_image_map            = { for option in local.workspace_image_options : option.value => option.image }
+  workspace_default_image_key    = element(local.workspace_image_options, 0).value
+  workspace_selection_image_key  = trimspace(data.coder_parameter.workspace_image.value)
+  workspace_effective_image_key  = local.workspace_selection_image_key != "" ? local.workspace_selection_image_key : local.workspace_default_image_key
+  workspace_final_image          = lookup(local.workspace_image_map, local.workspace_effective_image_key, element(local.workspace_image_options, 0).image)
+  jetbrains_ide_defaults = {
+    default = "IU"
+    golang  = "GO"
+    php     = "PS"
+    python  = "PY"
+    pgp     = "IU"
+    flutter = "IU"
+  }
+  jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
 }
 
 data "coder_provisioner" "me" {}
@@ -81,15 +136,6 @@ resource "coder_agent" "main" {
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
       sudo apt-get update -qq && sudo apt-get install -y -qq gh
     fi
-
-    # 安装 code-server (VS Code Web)
-    if ! command -v code-server &> /dev/null; then
-      curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/usr/local
-    fi
-
-    # 启动 code-server (后台运行, 使用 nohup 防止被终止)
-    nohup code-server --bind-addr 0.0.0.0:8080 --auth none /workspace > /tmp/code-server.log 2>&1 &
-    disown
 
     # 使用当前用户的 HOME 目录（现在以非 root 用户运行）
     CLAUDE_DIR="$HOME/.claude"
@@ -257,7 +303,137 @@ SETTINGSEOF
 
     echo "Startup script completed! Running as user: $(whoami)"
     echo "You can now use: claude --dangerously-skip-permissions"
+
+    mkdir -p /home/${local.username}/go
+    mkdir -p /workspace/project
+    
+    if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
+      if [ ! -x /workspace/flutter/bin/flutter ]; then
+        sudo rm -rf /workspace/flutter
+        sudo mkdir -p /workspace/flutter
+        sudo rsync -rlpt /opt/flutter/ /workspace/flutter/
+      fi
+      if [ ! -L /opt/flutter ]; then
+        sudo rm -rf /opt/flutter
+        sudo ln -s /workspace/flutter /opt/flutter
+      fi
+
+      if [ ! -d /workspace/android-sdk/platforms ]; then
+        sudo rm -rf /workspace/android-sdk
+        sudo mkdir -p /workspace/android-sdk
+        sudo rsync -rlpt /opt/android-sdk/ /workspace/android-sdk/
+      fi
+      if [ ! -L /opt/android-sdk ]; then
+        sudo rm -rf /opt/android-sdk
+        sudo ln -s /workspace/android-sdk /opt/android-sdk
+      fi
+      
+      # Install flutter-runx script
+      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
+    fi
+    # Install coder-server extensions
+    install_code_extensions() {
+      local vsix_base_dir="/home/${local.username}/.code-vsixs"
+      local env_key="$${WORKSPACE_IMAGE_KEY:-default}"
+      local delay=1
+      local max_attempts=300
+      if [ ! -d "$${vsix_base_dir}" ]; then
+        return
+      fi
+
+      # Wait for code-server to be available
+      local attempt
+      for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        if command -v code-server >/dev/null 2>&1; then
+          echo "code-server detected after $${attempt} attempt(s)."
+          sleep 5
+          break
+        fi
+        echo "Waiting for code-server installation... attempt $${attempt}/$${max_attempts}"
+        sleep "$${delay}"
+      done
+
+      if ! command -v code-server >/dev/null 2>&1; then
+        echo "code-server unavailable after $$(($${max_attempts} * $${delay})) seconds; skipping extension installation."
+        return
+      fi
+
+      # Function to install extensions from a directory
+      install_from_dir() {
+        local dir="$1"
+        local dir_name=$(basename "$${dir}")
+
+        if [ ! -d "$${dir}" ]; then
+          echo "Directory $${dir} does not exist, skipping."
+          return
+        fi
+
+        local vsix_files=("$${dir}"/*.vsix)
+        if [ "$${vsix_files[0]}" = "$${dir}/*.vsix" ]; then
+          echo "No VSIX files found in $${dir}, skipping."
+          return
+        fi
+
+        echo "Installing extensions from $${dir_name}..."
+        local vsix
+        for vsix in "$${vsix_files[@]}"; do
+          [ -f "$${vsix}" ] || continue
+
+          local vsix_name=$(basename "$${vsix}")
+          local installed_marker="/home/${local.username}/.local/share/code-server/extensions/.installed_$${vsix_name}"
+
+          if [ -f "$${installed_marker}" ]; then
+            echo "  Skipping $${vsix_name} (already installed previously)."
+            continue
+          fi
+
+          echo "  Installing $${vsix_name}..."
+          if code-server --force --install-extension "$${vsix}"; then
+            touch "$${installed_marker}"
+            echo "  Successfully installed $${vsix_name}."
+          else
+            echo "  Failed to install $${vsix_name}."
+          fi
+        done
+      }
+
+      # Install common extensions first
+      install_from_dir "$${vsix_base_dir}/common"
+
+      # Install environment-specific extensions (skip for default environment)
+      if [ "$${env_key}" = "pgp" ]; then
+        # Combined environment pulls PHP + Go + Python extensions
+        for lang_dir in php golang python; do
+          install_from_dir "$${vsix_base_dir}/$${lang_dir}"
+        done
+      elif [ "$${env_key}" != "default" ]; then
+        install_from_dir "$${vsix_base_dir}/$${env_key}"
+      fi
+
+      echo "Extension installation completed for environment: $${env_key}"
+    }
+    install_code_extensions </dev/null >/tmp/install-code-extensions.log 2>&1 &
+
+    # Install oh-my-bash if not installed
+    if [ ! -d /home/${local.username}/.oh-my-bash ]; then
+      bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
+    fi
+    echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
+    echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
+    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
+    if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
+      echo 'export FLUTTER_HOME=/opt/flutter' >> /home/${local.username}/.bashrc
+      echo 'export ANDROID_HOME=/opt/android-sdk' >> /home/${local.username}/.bashrc
+      echo 'export ANDROID_SDK_ROOT=/opt/android-sdk' >> /home/${local.username}/.bashrc
+      echo 'export PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}' >> /home/${local.username}/.bashrc
+    fi
+    CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /tmp/docker-prune.log 2>&1"
+    (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
   EOT
+
+  env = {
+    WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
+  }
 
   metadata {
     display_name = "CPU Usage"
@@ -282,33 +458,45 @@ SETTINGSEOF
     interval     = 600
     timeout      = 30
   }
-}
 
-# VS Code Web App
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "VS Code"
-  url          = "http://localhost:8080/?folder=/workspace"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
+  metadata {
+    display_name = "CPU 使用率（宿主机）"
+    key          = "4_cpu_usage_host"
+    script       = "coder stat cpu --host"
+    interval     = 10
+    timeout      = 1
+  }
 
-  healthcheck {
-    url       = "http://localhost:8080/healthz"
-    interval  = 5
-    threshold = 6
+  metadata {
+    display_name = "内存使用率（宿主机）"
+    key          = "5_mem_usage_host"
+    script       = "coder stat mem --host"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "平均负载（宿主机）"
+    key          = "6_load_host"
+    script   = <<EOT
+      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
+    EOT
+    interval = 60
+    timeout  = 1
+  }
+
+  metadata {
+    display_name = "交换分区使用率（宿主机）"
+    key          = "7_swap_host"
+    script       = <<EOT
+      free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }'
+    EOT
+    interval     = 30
+    timeout      = 1
   }
 }
 
-# Terminal App
-resource "coder_app" "terminal" {
-  agent_id     = coder_agent.main.id
-  slug         = "terminal"
-  display_name = "Terminal"
-  icon         = "/icon/terminal.svg"
-  command      = "/bin/bash"
-}
+
 
 # 用户 Home 目录持久化卷
 # 使用 owner + workspace name 命名，删除后同名重建可恢复数据
@@ -383,7 +571,7 @@ resource "docker_image" "main" {
 # 工作区容器
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.main.image_id
+  image = local.workspace_final_image
   name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 
   hostname = data.coder_workspace.me.name
@@ -393,7 +581,7 @@ resource "docker_container" "workspace" {
   entrypoint = ["sh", "-c", <<-EOT
     set -e
     USERNAME="${local.username}"
-
+    
     # 安装 sudo（如果不存在）
     if ! command -v sudo &>/dev/null; then
       apt-get update -qq && apt-get install -y -qq sudo
@@ -427,8 +615,9 @@ resource "docker_container" "workspace" {
     # 以非 root 用户身份启动 coder agent
     export HOME=/home/$USERNAME
     cd /home/$USERNAME
+    echo '${replace(replace(coder_agent.main.init_script, "'", "'\"'\"'"), "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}' > /tmp/start.sh
     exec sudo -u $USERNAME --preserve-env=CODER_AGENT_TOKEN,HOME \
-      sh -c '${replace(replace(coder_agent.main.init_script, "'", "'\"'\"'"), "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}'
+      bash -x /tmp/start.sh
   EOT
   ]
 
@@ -487,6 +676,12 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 
+  volumes {
+    container_path = "/home/${local.username}/.code-vsixs"
+    host_path      = "/home/coder/.code-vsixs"
+    read_only      = true
+  }
+
   # 连接到用户专属网络 (用户隔离 - 不同用户在不同网络无法互访)
   networks_advanced {
     name = data.docker_network.workspace_network.name
@@ -509,4 +704,62 @@ resource "docker_container" "workspace" {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
   }
+}
+
+data "coder_parameter" "workspace_image" {
+  default      = local.workspace_default_image_key
+  description  = "选择用于工作区的基础镜像。"
+  display_name = "工作区镜像"
+  mutable      = true
+  name         = "workspace_image"
+  type         = "string"
+  form_type    = "dropdown"
+  order        = 0
+  dynamic "option" {
+    for_each = local.workspace_image_options
+    content {
+      name  = option.value.name
+      value = option.value.value
+    }
+  }
+}
+
+module "code-server" {
+  count           = data.coder_workspace.me.start_count
+  source          = "registry.coder.com/coder/code-server/coder"
+  version         = "~> 1.0"
+  folder          = "/workspace/project"
+  agent_id        = coder_agent.main.id
+  settings        = {
+    "terminal.integrated.defaultProfile.linux" = "fish"
+    "terminal.integrated.profiles.linux" = {
+      "Claude Code": {
+        "path": "claude",
+        "args": [],
+        "icon": "robot"
+      }
+    }
+    "workbench.colorTheme" = "Default Dark Modern"
+    "window.menuBarVisibility" = "classic"
+    "remote.autoForwardPorts" = false
+  }
+}
+
+# See https://registry.coder.com/modules/coder/cursor
+module "cursor" {
+  count       = data.coder_workspace.me.start_count
+  source      = "registry.coder.com/coder/cursor/coder"
+  version     = "~> 1.0"
+  agent_id    = coder_agent.main.id
+  folder      = "/workspace/project"
+}
+
+# See https://registry.coder.com/modules/coder/jetbrains
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+  folder   = "/workspace/project"
+  default  = [local.jetbrains_default_ide]
 }
