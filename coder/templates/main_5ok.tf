@@ -103,40 +103,6 @@ resource "coder_agent" "main" {
       done
     fi
 
-    # 安装基础工具
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq curl git vim nano htop jq tree wget unzip \
-      iputils-ping traceroute tcpdump nload net-tools iproute2 dnsutils sshpass openssl
-
-    # 安装 Playwright 浏览器依赖
-    sudo apt-get install -y -qq --no-install-recommends \
-      libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
-      libcups2 libxcb1 libxkbcommon0 libatspi2.0-0 libx11-6 \
-      libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 \
-      libgbm1 libcairo2 libpango-1.0-0 ca-certificates gnupg
-
-    # 安装 Node.js 22 (如果不存在)
-    if ! command -v node &> /dev/null; then
-      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
-      sudo apt-get install -y -qq nodejs
-    fi
-
-    # 安装 Claude Code CLI
-    if ! command -v claude &> /dev/null; then
-      sudo npm install -g @anthropic-ai/claude-code || true
-    fi
-
-    # 安装 Playwright 浏览器
-      echo "安装 Playwright 浏览器..."
-      npx -y playwright install chromium || true
-
-    # 安装 GitHub CLI
-    if ! command -v gh &> /dev/null; then
-      curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-      sudo apt-get update -qq && sudo apt-get install -y -qq gh
-    fi
-
     # 使用当前用户的 HOME 目录（现在以非 root 用户运行）
     CLAUDE_DIR="$HOME/.claude"
 
@@ -418,17 +384,27 @@ SETTINGSEOF
     if [ ! -d /home/${local.username}/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
-    echo 'export GOROOT=/usr/local/go' >> /home/${local.username}/.bashrc
-    echo 'export GOPATH=/home/${local.username}/go' >> /home/${local.username}/.bashrc
-    echo 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin' >> /home/${local.username}/.bashrc
+
+    # Add environment variables if not present
+    add_env_var() {
+      if ! grep -q "$1" /home/${local.username}/.bashrc; then
+        echo "$1" >> /home/${local.username}/.bashrc
+      fi
+    }
+    add_env_var 'export GOROOT=/usr/local/go'
+    add_env_var 'export GOPATH=/home/${local.username}/go'
+    add_env_var 'export PATH=$PATH:$GOPATH/bin:$GOROOT/bin'
     if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
-      echo 'export FLUTTER_HOME=/opt/flutter' >> /home/${local.username}/.bashrc
-      echo 'export ANDROID_HOME=/opt/android-sdk' >> /home/${local.username}/.bashrc
-      echo 'export ANDROID_SDK_ROOT=/opt/android-sdk' >> /home/${local.username}/.bashrc
-      echo 'export PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:${PATH}' >> /home/${local.username}/.bashrc
+      add_env_var 'export FLUTTER_HOME=/opt/flutter'
+      add_env_var 'export ANDROID_HOME=/opt/android-sdk'
+      add_env_var 'export ANDROID_SDK_ROOT=/opt/android-sdk'
+      add_env_var 'export PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:$PATH'
     fi
+    # Add Docker image prune cron job if not present
     CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /tmp/docker-prune.log 2>&1"
-    (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
+    if ! crontab -l 2>/dev/null | grep -q "docker image prune"; then
+      (crontab -l 2>/dev/null ; echo "$CRON_JOB") | crontab -
+    fi
   EOT
 
   env = {

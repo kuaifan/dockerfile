@@ -20,6 +20,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     jq \
     locales \
     man \
+    nano \
     pipx \
     python3 \
     python3-pip \
@@ -27,6 +28,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     sudo \
     systemd \
     systemd-sysv \
+    tree \
     unzip \
     vim \
     wget \
@@ -38,7 +40,10 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     ncat \
     less \
     net-tools \
+    nload \
     openssh-client \
+    openssl \
+    sshpass \
     traceroute \
     dnsutils \
     tcpdump \
@@ -48,6 +53,28 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
 
 # Generate the desired locale (en_US.UTF-8)
 RUN locale-gen en_US.UTF-8
+
+# Install Playwright browser dependencies
+RUN apt-get update -qq \
+    && apt-get install -y -qq --no-install-recommends \
+      libglib2.0-0 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+      libcups2 libxcb1 libxkbcommon0 libatspi2.0-0 libx11-6 \
+      libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 \
+      libgbm1 libcairo2 libpango-1.0-0 ca-certificates gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 24
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y -qq nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI, Playwright browser, and GitHub CLI
+RUN npm install -g @anthropic-ai/claude-code \
+    && npx -y playwright install chromium \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update -qq && apt-get install -y -qq gh \
+    && rm -rf /var/lib/apt/lists/*
 
 # Make typing unicode characters in the terminal work.
 ENV LANG=en_US.UTF-8
