@@ -12,7 +12,7 @@ terraform {
 locals {
   username = data.coder_workspace_owner.me.name
   workspace_image_base     = "kuaifan/coder"
-  workspace_image_version  = "0.0.3"
+  workspace_image_version  = "0.0.4"
   workspace_image_variants = [
     {
       key        = "default"
