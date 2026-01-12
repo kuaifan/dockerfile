@@ -49,5 +49,5 @@ ENV FLUTTER_HOME=/opt/flutter \
 
 RUN set -eux; \
     flutter config --no-analytics; \
-    flutter precache --android --no-universal; \
+    flutter precache --android --android-arm64 --no-universal; \
     flutter --version
