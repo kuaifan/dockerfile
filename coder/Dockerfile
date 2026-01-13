@@ -1,4 +1,4 @@
-FROM nestybox/ubuntu-jammy-docker:latest
+FROM nestybox/ubuntu-noble-docker:latest
 
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
@@ -47,9 +47,16 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     traceroute \
     dnsutils \
     tcpdump \
+    gettext \
+    protobuf-compiler \
     ripgrep \
     cron \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -SL https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64 \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Generate the desired locale (en_US.UTF-8)
 RUN locale-gen en_US.UTF-8
