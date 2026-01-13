@@ -1,4 +1,4 @@
-FROM nestybox/ubuntu-noble-docker:latest
+FROM nestybox/ubuntu-jammy-docker:latest
 
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
