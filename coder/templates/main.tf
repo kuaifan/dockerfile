@@ -144,8 +144,10 @@ resource "coder_agent" "main" {
       wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
-    # Run claude-share copy script
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo python3 - copy >/dev/null
+    # Install claude-share helper and run default sync
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo tee /usr/local/bin/claude-share >/dev/null
+    sudo chmod +x /usr/local/bin/claude-share
+    sudo /usr/local/bin/claude-share copy >/dev/null
 
     # Install coder-server extensions
     install_code_extensions() {

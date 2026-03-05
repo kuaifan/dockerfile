@@ -61,8 +61,23 @@ def _chown_to_coder(path: str) -> None:
         pass
 
 
-def copy_auth() -> int:
-    if os.path.exists(LOCAL_CREDENTIALS_PATH):
+def _merge_shared_config() -> int:
+    shared_config = _safe_load_json(SHARED_CONFIG_PATH)
+    keys_to_merge = [key for key in CLAUDE_JSON_KEYS if key in shared_config]
+    if not keys_to_merge:
+        return 0
+
+    local_config = _safe_load_json(LOCAL_CONFIG_PATH)
+    for key in keys_to_merge:
+        local_config[key] = shared_config[key]
+
+    _write_json(LOCAL_CONFIG_PATH, local_config)
+    _chown_to_coder(LOCAL_CONFIG_PATH)
+    return 0
+
+
+def copy_auth(force: bool = False) -> int:
+    if not force and os.path.exists(LOCAL_CREDENTIALS_PATH):
         return 0
 
     os.makedirs("/home/coder/.claude", exist_ok=True)
@@ -70,23 +85,16 @@ def copy_auth() -> int:
     if os.path.exists(SHARED_CREDENTIALS_PATH):
         shutil.copy2(SHARED_CREDENTIALS_PATH, LOCAL_CREDENTIALS_PATH)
         _chown_to_coder(LOCAL_CREDENTIALS_PATH)
+    elif force:
+        print(f"missing shared credentials: {SHARED_CREDENTIALS_PATH}", file=sys.stderr)
+        return 1
 
-    shared_config = _safe_load_json(SHARED_CONFIG_PATH)
-    local_config = _safe_load_json(LOCAL_CONFIG_PATH)
-
-    for key in CLAUDE_JSON_KEYS:
-        if key in shared_config:
-            local_config[key] = shared_config[key]
-
-    _write_json(LOCAL_CONFIG_PATH, local_config)
-    _chown_to_coder(LOCAL_CONFIG_PATH)
-
-    return 0
+    return _merge_shared_config()
 
 
 def main(argv: List[str]) -> int:
     if argv and argv[0] == "copy":
-        return copy_auth()
+        return copy_auth(force="--force" in argv[1:])
     return 0
 
 if __name__ == "__main__":
