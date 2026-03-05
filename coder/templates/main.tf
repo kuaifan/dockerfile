@@ -144,6 +144,9 @@ resource "coder_agent" "main" {
       wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
+    # Run claude-share copy script
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo python3 - copy >/dev/null
+
     # Install coder-server extensions
     install_code_extensions() {
       local vsix_base_dir="/home/coder/.code-vsixs"
@@ -242,15 +245,18 @@ resource "coder_agent" "main" {
 
     # Install Claude Code CLI if not installed (async, non-blocking)
     if [ ! -f /home/coder/.local/bin/claude ]; then
-      (
+      sudo -u coder nohup bash -lc '
         echo "Installing Claude Code CLI..."
-        if curl -fsSL https://claude.ai/install.sh | bash >/home/coder/.log/claude-install.log 2>&1; then
-          echo "Claude Code CLI installed successfully"
-        else
-          echo "Failed to install Claude Code CLI"
-        fi
-      ) &
+        curl -fsSL https://claude.ai/install.sh | bash
+      ' </dev/null >/home/coder/.log/claude-install-wrapper.log 2>&1 &
     fi
+
+    # 移除过期的 Yarn 源
+    sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
+
+    # Ensure specific containerd version is installed to avoid compatibility issues
+    sudo apt-get update
+    sudo apt-get install -y --allow-downgrades containerd.io=1.7.28-1~ubuntu.24.04~noble
 
     # Start Docker first
     sudo service docker start
@@ -467,6 +473,18 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/.code-vsixs"
     host_path      = "/home/coder/.code-vsixs"
+    read_only      = true
+  }
+
+  volumes {
+    container_path = "/home/coder/.claude-share/.credentials.json"
+    host_path      = "/root/.claude/.credentials.json"
+    read_only      = true
+  }
+
+  volumes {
+    container_path = "/home/coder/.claude-share/.claude.json"
+    host_path      = "/root/.claude.json"
     read_only      = true
   }
 
