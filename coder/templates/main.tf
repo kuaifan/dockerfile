@@ -480,14 +480,8 @@ resource "docker_container" "workspace" {
   }
 
   volumes {
-    container_path = "/home/coder/.claude-share/.credentials.json"
-    host_path      = "/root/.claude/.credentials.json"
-    read_only      = true
-  }
-
-  volumes {
-    container_path = "/home/coder/.claude-share/.claude.json"
-    host_path      = "/root/.claude.json"
+    container_path = "/home/coder/.claude-share"
+    host_path      = "/home/coder/.claude-share"
     read_only      = true
   }
 
