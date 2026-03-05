@@ -144,11 +144,6 @@ resource "coder_agent" "main" {
       wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
-    # Install claude-share helper and run default sync
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo tee /usr/local/bin/claude-share >/dev/null
-    sudo chmod +x /usr/local/bin/claude-share
-    sudo /usr/local/bin/claude-share copy >/dev/null
-
     # Install coder-server extensions
     install_code_extensions() {
       local vsix_base_dir="/home/coder/.code-vsixs"
@@ -252,6 +247,12 @@ resource "coder_agent" "main" {
         curl -fsSL https://claude.ai/install.sh | bash
       ' </dev/null >/home/coder/.log/claude-install-wrapper.log 2>&1 &
     fi
+
+    # Install claude-share helper
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo tee /usr/local/bin/claude-share >/dev/null
+    sudo chmod +x /usr/local/bin/claude-share
+
+    sudo /usr/local/bin/claude-share copy </dev/null >/home/coder/.log/claude-share.log 2>&1 &
 
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true

@@ -4,7 +4,9 @@ import json
 import os
 import pwd
 import shutil
+import subprocess
 import sys
+import time
 from typing import Any, Dict, List
 
 
@@ -76,9 +78,36 @@ def _merge_shared_config() -> int:
     return 0
 
 
+def _has_claude_command() -> bool:
+    if os.path.exists("/home/coder/.local/bin/claude"):
+        return True
+    try:
+        result = subprocess.run(
+            ["sudo", "-u", "coder", "bash", "-lc", "command -v claude >/dev/null 2>&1"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _wait_for_claude_command() -> None:
+    while not _has_claude_command():
+        time.sleep(3)
+
+
 def copy_auth(force: bool = False) -> int:
     if not force and os.path.exists(LOCAL_CREDENTIALS_PATH):
         return 0
+
+    if force:
+        if not _has_claude_command():
+            print("claude is not installed", file=sys.stderr)
+            return 1
+    else:
+        _wait_for_claude_command()
 
     os.makedirs("/home/coder/.claude", exist_ok=True)
 
