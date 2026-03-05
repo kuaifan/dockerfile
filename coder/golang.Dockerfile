@@ -35,8 +35,9 @@ RUN set -eux; \
     rm -f "${tmp_tar}"; \
     # install -d -o coder -g coder /home/coder/go; \
     /usr/local/go/bin/go install github.com/air-verse/air@latest; \
-    /usr/local/go/bin/go install golang.org/x/tools/gopls@latest
-
+    /usr/local/go/bin/go install golang.org/x/tools/gopls@latest; \
+    /usr/local/go/bin/go install google.golang.org/protobuf/cmd/protoc-gen-go@latest; \
+    /usr/local/go/bin/go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 # ENV GOROOT=/usr/local/go
 # ENV GOPATH=/home/coder/go
 # ENV PATH=/usr/local/go/bin:/home/coder/go/bin:${PATH}
