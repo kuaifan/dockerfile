@@ -96,7 +96,7 @@ data "coder_parameter" "workspace_image" {
 }
 
 data "coder_parameter" "ai_agent" {
-  default      = "[]"
+  default      = jsonencode(["claude"])
   description  = "AI Agent 设置"
   display_name = "AI Agent"
   mutable      = true
@@ -256,18 +256,26 @@ resource "coder_agent" "main" {
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
-    # Install or update Claude Code CLI (async, non-blocking)
-    if [ -f /home/coder/.local/bin/claude ]; then
-      sudo -u coder nohup bash -lc '
+    # Install or update CLI tools (async, non-blocking)
+    sudo -u coder nohup bash -lc '
+      echo "[$(date "+%Y-%m-%d %H:%M:%S")] CLI setup started"
+
+      if [ -f /home/coder/.local/bin/claude ]; then
         echo "Updating Claude Code CLI..."
         claude update
-      ' </dev/null >/home/coder/.log/claude-update-wrapper.log 2>&1 &
-    else
-      sudo -u coder nohup bash -lc '
+      else
         echo "Installing Claude Code CLI..."
         curl -fsSL https://claude.ai/install.sh | bash
-      ' </dev/null >/home/coder/.log/claude-install-wrapper.log 2>&1 &
-    fi
+      fi
+
+      if command -v happy >/dev/null 2>&1; then
+        echo "Updating happy-next-cli..."
+        sudo happy update
+      else
+        echo "Installing happy-next-cli..."
+        sudo npm install -g happy-next-cli
+      fi
+    ' </dev/null >/home/coder/.log/cli-setup.log 2>&1 &
 
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
