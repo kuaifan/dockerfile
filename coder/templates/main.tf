@@ -66,7 +66,8 @@ locals {
     flutter = "IU"
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
-
+  ai_agents      = try(jsondecode(data.coder_parameter.ai_agent.value), [])
+  ai_use_claude  = contains(local.ai_agents, "claude")
 }
 
 provider "coder" {}
@@ -94,6 +95,21 @@ data "coder_parameter" "workspace_image" {
   }
 }
 
+data "coder_parameter" "ai_agent" {
+  default      = "[]"
+  description  = "AI Agent 设置"
+  display_name = "AI Agent"
+  mutable      = true
+  name         = "ai_agent"
+  type         = "list(string)"
+  form_type    = "multi-select"
+  order        = 1
+
+  option {
+    name  = "Claude Code"
+    value = "claude"
+  }
+}
 
 resource "coder_agent" "main" {
   arch            = data.coder_provisioner.me.arch
@@ -240,19 +256,18 @@ resource "coder_agent" "main" {
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
-    # Install Claude Code CLI if not installed (async, non-blocking)
-    if [ ! -f /home/coder/.local/bin/claude ]; then
+    # Install or update Claude Code CLI (async, non-blocking)
+    if [ -f /home/coder/.local/bin/claude ]; then
+      sudo -u coder nohup bash -lc '
+        echo "Updating Claude Code CLI..."
+        claude update
+      ' </dev/null >/home/coder/.log/claude-update-wrapper.log 2>&1 &
+    else
       sudo -u coder nohup bash -lc '
         echo "Installing Claude Code CLI..."
         curl -fsSL https://claude.ai/install.sh | bash
       ' </dev/null >/home/coder/.log/claude-install-wrapper.log 2>&1 &
     fi
-
-    # Install claude-share helper
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/claude-share.sh | sudo tee /usr/local/bin/claude-share >/dev/null
-    sudo chmod +x /usr/local/bin/claude-share
-
-    sudo /usr/local/bin/claude-share copy </dev/null >/home/coder/.log/claude-share.log 2>&1 &
 
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
@@ -275,13 +290,22 @@ resource "coder_agent" "main" {
     sudo service docker stop
   EOT
 
-  env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
-    WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
-  }
+  env = merge(
+    {
+      GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+      GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+      GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+      WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
+    },
+    local.ai_use_claude ? {
+      ANTHROPIC_BASE_URL             = "http://cliproxyapi:8317"
+      ANTHROPIC_AUTH_TOKEN           = "l6z02MKdqKBOjumkir5xTexl"
+      ANTHROPIC_DEFAULT_OPUS_MODEL   = "claude-opus-4-6"
+      ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
+      ANTHROPIC_DEFAULT_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
+    } : {}
+  )
 
   metadata {
     display_name = "CPU 使用率"
@@ -442,7 +466,11 @@ variable "use_sysbox" {
 }
 
 data "docker_network" "workspace_network" {
-  name = "coder-workspace-network"
+  name = "coder-workspace-network1"
+}
+
+data "docker_network" "ai_proxy_network" {
+  name = "coder-workspace-ai-proxy"
 }
 
 resource "docker_container" "workspace" {
@@ -461,6 +489,12 @@ resource "docker_container" "workspace" {
   networks_advanced {
     name = data.docker_network.workspace_network.name
   }
+
+  # 连接到 AI 代理网络
+  networks_advanced {
+    name = data.docker_network.ai_proxy_network.name
+  }
+
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
@@ -476,12 +510,6 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/.code-vsixs"
     host_path      = "/home/coder/.code-vsixs"
-    read_only      = true
-  }
-
-  volumes {
-    container_path = "/home/coder/.claude-share"
-    host_path      = "/home/coder/.claude-share"
     read_only      = true
   }
 
