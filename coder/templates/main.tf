@@ -257,25 +257,7 @@ resource "coder_agent" "main" {
     fi
 
     # Install or update CLI tools (async, non-blocking)
-    sudo -u coder nohup bash -lc '
-      echo "[$(date "+%Y-%m-%d %H:%M:%S")] CLI setup started"
-
-      if [ -f /home/coder/.local/bin/claude ]; then
-        echo "Updating Claude Code CLI..."
-        claude update
-      else
-        echo "Installing Claude Code CLI..."
-        curl -fsSL https://claude.ai/install.sh | bash
-      fi
-
-      if command -v happy >/dev/null 2>&1; then
-        echo "Updating happy-next-cli..."
-        sudo happy update
-      else
-        echo "Installing happy-next-cli..."
-        sudo npm install -g happy-next-cli
-      fi
-    ' </dev/null >/home/coder/.log/cli-setup.log 2>&1 &
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | sudo python3 >/dev/null 2>&1 &
 
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
