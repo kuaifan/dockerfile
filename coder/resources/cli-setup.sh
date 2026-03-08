@@ -2,11 +2,9 @@
 
 import subprocess
 import os
-import sys
 from datetime import datetime
 
 LOG_FILE = "/home/coder/.log/cli-setup.log"
-CODER_USER = "coder"
 
 
 def log(msg):
@@ -21,26 +19,21 @@ def log(msg):
         pass
 
 
-def run_as_coder(cmd):
-    """Run a command as the coder user with a login shell."""
+def run(cmd):
+    """Run a command in a login shell (as current user, i.e. coder)."""
     return subprocess.run(
-        ["sudo", "-u", CODER_USER, "bash", "-lc", cmd],
+        ["bash", "-lc", cmd],
         capture_output=True, text=True
     )
-
-
-def run(cmd):
-    """Run a command as current user (root)."""
-    return subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
 
 def setup_claude():
     if os.path.isfile("/home/coder/.local/bin/claude"):
         log("Updating Claude Code CLI...")
-        r = run_as_coder("claude update")
+        r = run("claude update")
     else:
         log("Installing Claude Code CLI...")
-        r = run_as_coder("curl -fsSL https://claude.ai/install.sh | bash")
+        r = run("curl -fsSL https://claude.ai/install.sh | bash")
     if r.returncode != 0:
         log(f"Claude CLI failed: {r.stderr.strip()}")
     else:
@@ -48,19 +41,19 @@ def setup_claude():
 
 
 def setup_happy():
-    check = run_as_coder("command -v happy")
+    check = run("command -v happy")
     if check.returncode == 0:
         log("Updating happy-next-cli...")
-        r = run("happy update")
+        r = run("sudo happy update")
     else:
         log("Installing happy-next-cli...")
-        r = run("npm install -g happy-next-cli")
+        r = run("sudo npm install -g happy-next-cli")
     if r.returncode != 0:
         log(f"happy-next-cli failed: {r.stderr.strip()}")
     else:
         log("happy-next-cli done.")
         log("Starting happy daemon...")
-        d = run_as_coder("happy daemon start")
+        d = run("happy daemon start")
         if d.returncode != 0:
             log(f"happy daemon start failed: {d.stderr.strip()}")
         else:
