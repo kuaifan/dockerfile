@@ -48,10 +48,10 @@ def setup_claude():
 
 
 def setup_happy():
-    check = run("command -v happy")
+    check = run_as_coder("command -v happy")
     if check.returncode == 0:
         log("Updating happy-next-cli...")
-        r = run("npm install -g happy-next-cli")
+        r = run("happy update")
     else:
         log("Installing happy-next-cli...")
         r = run("npm install -g happy-next-cli")
@@ -60,7 +60,7 @@ def setup_happy():
     else:
         log("happy-next-cli done.")
         log("Starting happy daemon...")
-        d = run("happy daemon start")
+        d = run_as_coder("happy daemon start")
         if d.returncode != 0:
             log(f"happy daemon start failed: {d.stderr.strip()}")
         else:
