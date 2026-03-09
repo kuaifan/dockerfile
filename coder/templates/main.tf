@@ -426,8 +426,26 @@ resource "docker_volume" "home_volume" {
   }
 }
 
+resource "null_resource" "create_docker_volume_dir" {
+  triggers = {
+    workspace_id = data.coder_workspace.me.id
+  }
+
+  provisioner "local-exec" {
+    command = "mkdir -p /mnt/dind_docker_volume/volumes/${data.coder_workspace.me.id}_docker_volume"
+  }
+}
+
 resource "docker_volume" "docker_volume" {
-  name = "coder-${data.coder_workspace.me.id}-docker"
+  name = "coder-${data.coder_workspace.me.id}-docker-volume"
+  driver = "local"
+  driver_opts = {
+    type   = "none"
+    o      = "bind"
+    # 这里修改为你想要的宿主机绝对路径
+    device = "/mnt/dind_docker_volume/volumes/${data.coder_workspace.me.id}_docker_volume"
+  }
+  depends_on = [null_resource.create_docker_volume_dir]
   lifecycle {
     ignore_changes = all
   }
@@ -449,15 +467,9 @@ resource "docker_volume" "docker_volume" {
   }
 }
 
-# 变量定义
-variable "use_sysbox" {
-  type        = bool
-  default     = true
-  description = "使用 Sysbox 运行时实现真正的 Docker-in-Docker（宿主机已安装 Sysbox）"
-}
 
 data "docker_network" "workspace_network" {
-  name = "coder-workspace-network1"
+  name = "coder-workspace-network"
 }
 
 data "docker_network" "ai_proxy_network" {
@@ -474,7 +486,7 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_TOKEN=${coder_agent.main.token}"
   ]
   
-  runtime = var.use_sysbox ? "sysbox-runc" : null
+  runtime = "sysbox-runc"
 
   # 连接到用户专属网络 (用户隔离 - 不同用户在不同网络无法互访)
   networks_advanced {
