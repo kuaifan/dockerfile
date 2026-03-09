@@ -70,7 +70,7 @@ locals {
   ai_use_claude  = contains(local.ai_agents, "claude")
   ai_proxy_secret_key  = "kI7nEfvgLaYcqS8a3Gonyii2kaKIHiBh"
   anthropic_base_url   = "https://ai-proxy.hitosea.com"
-  anthropic_auth_token = "sk-hi-${data.coder_workspace_owner.me.name}-l8dyxu1VRU7aNm7T"
+  anthropic_auth_token = "sk-${md5(substr(md5(data.coder_workspace_owner.me.name), 0, 16))}-${data.coder_workspace_owner.me.name}"
 }
 
 provider "coder" {}
@@ -133,11 +133,6 @@ resource "coder_agent" "main" {
     fi
     if [ ! -d /home/coder/go ]; then
       mkdir -p /home/coder/go
-    fi
-
-    # Ensure per-user Anthropic API key exists.
-    if [ -n "$${AI_PROXY_SECRET_KEY:-}" ] && [ -n "$${ANTHROPIC_BASE_URL:-}" ] && [ -n "$${ANTHROPIC_AUTH_TOKEN:-}" ]; then
-      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-api-key.py | python3 - "$${AI_PROXY_SECRET_KEY}" "$${ANTHROPIC_BASE_URL}" "$${ANTHROPIC_AUTH_TOKEN}" >/dev/null 2>/home/coder/.log/anthropic-auth-token.log || true
     fi
 
     # Prepare Flutter-specific tooling on persistent storage
@@ -267,6 +262,9 @@ resource "coder_agent" "main" {
     # Install or update CLI tools (async, non-blocking)
     wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3 >/dev/null 2>&1 &
 
+    # Ensure per-user AI API key exists.
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-api-key.py | python3 - "${local.ai_proxy_secret_key}" "${local.anthropic_base_url}" "${local.anthropic_auth_token}" >/dev/null 2>/home/coder/.log/anthropic-auth-token.log || true
+
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
 
@@ -297,7 +295,6 @@ resource "coder_agent" "main" {
       WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
     },
     local.ai_use_claude ? {
-      AI_PROXY_SECRET_KEY            = local.ai_proxy_secret_key
       ANTHROPIC_BASE_URL             = local.anthropic_base_url
       ANTHROPIC_AUTH_TOKEN           = local.anthropic_auth_token
       ANTHROPIC_MODEL                = "claude-opus-4-6"
@@ -476,13 +473,8 @@ resource "docker_volume" "docker_volume" {
   }
 }
 
-
 data "docker_network" "workspace_network" {
   name = "coder-workspace-network"
-}
-
-data "docker_network" "ai_proxy_network" {
-  name = "coder-workspace-ai-proxy"
 }
 
 resource "docker_container" "workspace" {
@@ -500,11 +492,6 @@ resource "docker_container" "workspace" {
   # 连接到用户专属网络 (用户隔离 - 不同用户在不同网络无法互访)
   networks_advanced {
     name = data.docker_network.workspace_network.name
-  }
-
-  # 连接到 AI 代理网络
-  networks_advanced {
-    name = data.docker_network.ai_proxy_network.name
   }
 
   volumes {
