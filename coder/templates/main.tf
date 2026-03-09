@@ -70,7 +70,7 @@ locals {
   ai_use_claude  = contains(local.ai_agents, "claude")
   ai_proxy_secret_key  = "kI7nEfvgLaYcqS8a3Gonyii2kaKIHiBh"
   anthropic_base_url   = "https://ai-proxy.hitosea.com"
-  anthropic_auth_token = "sk-hi-l8dyxu1VRU7aNm7T-${data.coder_workspace_owner.me.name}"
+  anthropic_auth_token = "sk-hi-${data.coder_workspace_owner.me.name}-l8dyxu1VRU7aNm7T"
 }
 
 provider "coder" {}
