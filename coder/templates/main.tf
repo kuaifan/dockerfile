@@ -68,6 +68,9 @@ locals {
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
   ai_agents      = try(jsondecode(data.coder_parameter.ai_agent.value), [])
   ai_use_claude  = contains(local.ai_agents, "claude")
+  ai_proxy_secret_key  = "kI7nEfvgLaYcqS8a3Gonyii2kaKIHiBh"
+  anthropic_base_url   = "https://ai-proxy.hitosea.com"
+  anthropic_auth_token = "sk-hi-l8dyxu1VRU7aNm7T-${data.coder_workspace_owner.me.name}"
 }
 
 provider "coder" {}
@@ -130,6 +133,11 @@ resource "coder_agent" "main" {
     fi
     if [ ! -d /home/coder/go ]; then
       mkdir -p /home/coder/go
+    fi
+
+    # Ensure per-user Anthropic API key exists.
+    if [ -n "$${AI_PROXY_SECRET_KEY:-}" ] && [ -n "$${ANTHROPIC_BASE_URL:-}" ] && [ -n "$${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-api-key.py | python3 - "$${AI_PROXY_SECRET_KEY}" "$${ANTHROPIC_BASE_URL}" "$${ANTHROPIC_AUTH_TOKEN}" >/dev/null 2>/home/coder/.log/anthropic-auth-token.log || true
     fi
 
     # Prepare Flutter-specific tooling on persistent storage
@@ -289,8 +297,9 @@ resource "coder_agent" "main" {
       WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
     },
     local.ai_use_claude ? {
-      ANTHROPIC_BASE_URL             = "http://cliproxyapi:8317"
-      ANTHROPIC_AUTH_TOKEN           = "l6z02MKdqKBOjumkir5xTexl"
+      AI_PROXY_SECRET_KEY            = local.ai_proxy_secret_key
+      ANTHROPIC_BASE_URL             = local.anthropic_base_url
+      ANTHROPIC_AUTH_TOKEN           = local.anthropic_auth_token
       ANTHROPIC_MODEL                = "claude-opus-4-6"
       ANTHROPIC_DEFAULT_OPUS_MODEL   = "claude-opus-4-6"
       ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
