@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# 安装命令：wget -O- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install
+# 用途：为 Flutter 提供 runx 包装命令与安装入口。
 
 import getpass
 import json

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 用途：安装或更新常用 CLI（Claude、Codex、Happy） 工具，并记录执行日志。
 
 import subprocess
 import os
@@ -39,6 +40,19 @@ def setup_claude():
     else:
         log("Claude CLI done.")
 
+def setup_codex():
+    check = run("command -v codex")
+    if check.returncode == 0:
+        log("Updating Codex CLI...")
+        r = run("sudo npm i -g @openai/codex@latest")
+    else:
+        log("Installing Codex CLI...")
+        r = run("sudo npm i -g @openai/codex")
+    if r.returncode != 0:
+        log(f"Codex CLI failed: {r.stderr.strip()}")
+    else:
+        log("Codex CLI done.")
+
 
 def setup_happy():
     check = run("command -v happy")
@@ -47,7 +61,7 @@ def setup_happy():
         r = run("sudo happy update")
     else:
         log("Installing happy-next-cli...")
-        r = run("sudo npm install -g happy-next-cli")
+        r = run("sudo npm i -g happy-next-cli")
     if r.returncode != 0:
         log(f"happy-next-cli failed: {r.stderr.strip()}")
     else:
@@ -63,6 +77,7 @@ def setup_happy():
 def main():
     log("CLI setup started")
     setup_claude()
+    setup_codex()
     setup_happy()
     log("CLI setup finished")
 
