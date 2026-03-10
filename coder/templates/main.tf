@@ -66,11 +66,18 @@ locals {
     flutter = "IU"
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
-  ai_agents      = try(jsondecode(data.coder_parameter.ai_agent.value), [])
-  ai_use_claude  = contains(local.ai_agents, "claude")
-  ai_proxy_secret_key  = "kI7nEfvgLaYcqS8a3Gonyii2kaKIHiBh"
-  anthropic_base_url   = "https://ai-proxy.hitosea.com"
-  anthropic_auth_token = "sk-${md5(substr(md5(data.coder_workspace_owner.me.name), 0, 16))}-${data.coder_workspace_owner.me.name}"
+  ai_agents = try(jsondecode(data.coder_parameter.ai_agent.value), [])
+  ai_proxy  = {
+    base_url            = "https://ai-proxy.hitosea.com"
+    secret_key          = "kI7nEfvgLaYcqS8a3Gonyii2kaKIHiBh"
+    auth_token          = "sk-${md5(substr(md5(data.coder_workspace_owner.me.name), 0, 16))}-${data.coder_workspace_owner.me.name}"
+    claude_model        = "claude-opus-4-6"
+    claude_opus_model   = "claude-opus-4-6"
+    claude_sonnet_model = "claude-sonnet-4-6"
+    claude_haiku_model  = "claude-haiku-4-5-20251001"
+    codex_model         = "gpt-5.3-codex"
+    codex_effort        = "medium"
+  }
 }
 
 provider "coder" {}
@@ -99,7 +106,7 @@ data "coder_parameter" "workspace_image" {
 }
 
 data "coder_parameter" "ai_agent" {
-  default      = jsonencode(["claude"])
+  default      = jsonencode(["claude", "codex"])
   description  = "AI Agent 设置"
   display_name = "AI Agent"
   mutable      = true
@@ -111,6 +118,11 @@ data "coder_parameter" "ai_agent" {
   option {
     name  = "Claude Code"
     value = "claude"
+  }
+
+  option {
+    name  = "Codex"
+    value = "codex"
   }
 }
 
@@ -263,7 +275,12 @@ resource "coder_agent" "main" {
     wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3 >/dev/null 2>&1 &
 
     # Ensure per-user AI API key exists.
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-api-key.py | python3 - "${local.ai_proxy_secret_key}" "${local.anthropic_base_url}" "${local.anthropic_auth_token}" >/dev/null 2>/home/coder/.log/anthropic-auth-token.log || true
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-api-key.sh | python3 - "${local.ai_proxy.secret_key}" "${local.ai_proxy.base_url}" "${local.ai_proxy.auth_token}" >/dev/null 2>&1 || true
+
+    # Ensure Codex proxy config and auth are present.
+    if [ "${contains(local.ai_agents, "codex")}" = "true" ]; then
+      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/ensure-codex-config.sh | python3 - "${local.ai_proxy.base_url}" "${local.ai_proxy.auth_token}" "${local.ai_proxy.codex_model}" "${local.ai_proxy.codex_effort}" >/dev/null 2>&1 || true
+    fi
 
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
@@ -294,13 +311,13 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
       WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
     },
-    local.ai_use_claude ? {
-      ANTHROPIC_BASE_URL             = local.anthropic_base_url
-      ANTHROPIC_AUTH_TOKEN           = local.anthropic_auth_token
-      ANTHROPIC_MODEL                = "claude-opus-4-6"
-      ANTHROPIC_DEFAULT_OPUS_MODEL   = "claude-opus-4-6"
-      ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-6"
-      ANTHROPIC_DEFAULT_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
+    contains(local.ai_agents, "claude") ? {
+      ANTHROPIC_BASE_URL             = local.ai_proxy.base_url
+      ANTHROPIC_AUTH_TOKEN           = local.ai_proxy.auth_token
+      ANTHROPIC_MODEL                = local.ai_proxy.claude_model
+      ANTHROPIC_DEFAULT_OPUS_MODEL   = local.ai_proxy.claude_opus_model
+      ANTHROPIC_DEFAULT_SONNET_MODEL = local.ai_proxy.claude_sonnet_model
+      ANTHROPIC_DEFAULT_HAIKU_MODEL  = local.ai_proxy.claude_haiku_model
     } : {}
   )
 
