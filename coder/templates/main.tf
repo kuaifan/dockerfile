@@ -67,16 +67,8 @@ locals {
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
 }
 
-variable "docker_socket" {
-  default     = ""
-  description = "(Optional) Docker socket URI"
-  type        = string
-}
-
 provider "coder" {}
-provider "docker" {
-  host = var.docker_socket != "" ? var.docker_socket : null
-}
+provider "docker" {}
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
@@ -423,10 +415,13 @@ resource "docker_volume" "docker_volume" {
   }
 }
 
+data "docker_network" "workspace_network" {
+  name = "coder-workspace-network"
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = local.workspace_final_image
-  privileged = true
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   hostname = data.coder_workspace.me.name
   command = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
@@ -434,9 +429,10 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_TOKEN=${coder_agent.main.token}"
   ]
 
-  host {
-    host = "host.docker.internal"
-    ip   = "host-gateway"
+  runtime = "sysbox-runc"
+
+  networks_advanced {
+    name = data.docker_network.workspace_network.name
   }
 
   volumes {
