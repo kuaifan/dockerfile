@@ -65,31 +65,6 @@ locals {
     flutter = "IU"
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
-
-  repo_url_lines      = [for line in split("\n", replace(data.coder_parameter.repo_url.value, "\r", "")) : trimspace(line)]
-  repo_url_inputs     = [for line in local.repo_url_lines : line if line != ""]
-  repo_primary_folder = length(local.repo_url_inputs) == 1 ? "/home/coder/workspaces/${trimsuffix(basename(element(local.repo_url_inputs, 0)), ".git")}" : "/home/coder/workspaces"
-
-  docker_port_lines   = [for line in split("\n", replace(data.coder_parameter.docker_ports.value, "\r", "")) : trimspace(line)]
-  docker_port_inputs  = [for line in local.docker_port_lines : line if line != ""]
-  docker_ports = [
-    for entry in local.docker_port_inputs : trimspace(entry)
-    if length(regexall("(?i)^\\d+(?::\\d+)?(?:/(tcp|udp))?$", trimspace(entry))) > 0
-  ]
-  docker_port_entries = [
-    for entry in local.docker_ports : {
-      numbers  = regexall("\\d+", entry)
-      protocol = lower(trimspace(try(element(split("/", entry), 1), "tcp")))
-    }
-    if length(regexall("\\d+", entry)) > 0
-  ]
-  docker_port_mappings = [
-    for entry in local.docker_port_entries : {
-      external = tonumber(element(entry.numbers, 0))
-      internal = tonumber(try(element(entry.numbers, 1), element(entry.numbers, 0)))
-      protocol = contains(["tcp", "udp"], entry.protocol) ? entry.protocol : "tcp"
-    }
-  ]
 }
 
 variable "docker_socket" {
@@ -125,47 +100,9 @@ data "coder_parameter" "workspace_image" {
   }
 }
 
-data "coder_parameter" "repo_url" {
-  default      = ""
-  description  = "（可选）输入需要克隆到工作区的 Git 仓库 URL（每行一个）。"
-  display_name = "Git 仓库"
-  mutable      = true
-  name         = "repo_url"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 1
-  styling = jsonencode({
-    placeholder = <<-EOT
-    例如
-    https://github.com/username/repository.git
-    https://gitlab.com/org/project.git
-    EOT
-  })
-}
-
-data "coder_parameter" "docker_ports" {
-  default      = ""
-  description  = "（可选）列出需要从工作区容器暴露的端口，每行一个端口或映射。"
-  display_name = "Docker 端口"
-  mutable      = true
-  name         = "docker_ports"
-  type         = "string"
-  form_type    = "textarea"
-  order        = 2
-  styling = jsonencode({
-    placeholder = <<-EOT
-    例如
-    80
-    443
-    8080:80
-    53/udp
-    10053:53/udp
-    EOT
-  })
-}
 
 resource "coder_agent" "main" {
-  arch            = data.coder_provisioner.me.arch
+  arch            = "arm64"
   os              = "linux"
   startup_script  = <<-EOT
     set -e
@@ -332,6 +269,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
     WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
+    ARCH                = "arm64"
   }
 
   metadata {
@@ -395,22 +333,13 @@ resource "coder_agent" "main" {
   }
 }
 
-# See https://registry.coder.com/modules/coder/git-clone
-module "git-clone" {
-  for_each    = data.coder_workspace.me.start_count > 0 ? { for idx, url in local.repo_url_inputs : "${tostring(data.coder_workspace.me.start_count)}-${tostring(idx)}" => url } : {}
-  source      = "registry.coder.com/coder/git-clone/coder"
-  agent_id    = coder_agent.main.id
-  url         = each.value
-  base_dir    = "/home/coder/workspaces"
-  version     = "~> 1.0"
-}
-
 # See https://registry.coder.com/modules/coder/code-server
 module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = local.repo_primary_folder
+  install_version = "4.112.0"
+  folder          = "/home/coder/workspaces"
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions_dir  = "/home/coder/.code-extensions"
@@ -435,7 +364,7 @@ module "cursor" {
   source      = "registry.coder.com/coder/cursor/coder"
   version     = "~> 1.0"
   agent_id    = coder_agent.main.id
-  folder      = local.repo_primary_folder
+  folder      = "/home/coder/workspaces/"
 }
 
 # See https://registry.coder.com/modules/coder/jetbrains
@@ -444,7 +373,7 @@ module "jetbrains" {
   source   = "registry.coder.com/coder/jetbrains/coder"
   version  = "~> 1.0"
   agent_id = coder_agent.main.id
-  folder   = local.repo_primary_folder
+  folder   = "/home/coder/workspaces"
   default  = [local.jetbrains_default_ide]
 }
 
@@ -505,14 +434,6 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_TOKEN=${coder_agent.main.token}"
   ]
 
-  dynamic "ports" {
-    for_each = local.docker_port_mappings
-    content {
-      internal = ports.value.internal
-      external = ports.value.external
-      protocol = ports.value.protocol
-    }
-  }
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
