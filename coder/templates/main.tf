@@ -241,6 +241,13 @@ resource "coder_agent" "main" {
     # Install or update CLI tools (async, non-blocking)
     wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3 >/dev/null 2>&1 &
 
+    # 移除过期的 Yarn 源
+    sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
+
+    # Ensure specific containerd version is installed to avoid compatibility issues
+    sudo apt-get update
+    sudo apt-get install -y --allow-downgrades containerd.io=1.7.28-1~ubuntu.24.04~noble
+
     # Start Docker first
     sudo service docker start
 
