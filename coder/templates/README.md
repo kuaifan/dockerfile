@@ -15,7 +15,6 @@ Ubuntu 24.04 · Sysbox DinD 开发环境（arm64）
 ----
 
 - 目标架构：**arm64**（`arch = "arm64"`）
-- code-server 固定版本 **4.112.0**（4.113.0 arm64 包存在 node 二进制架构错误 [code-server#7738](https://github.com/coder/code-server/issues/7738)）
 
 宿主机前置条件
 --------------

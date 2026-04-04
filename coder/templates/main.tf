@@ -330,7 +330,6 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  install_version = "4.112.0"
   folder          = "/home/coder/workspaces"
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
