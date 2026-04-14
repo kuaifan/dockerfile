@@ -94,7 +94,7 @@ data "coder_parameter" "workspace_image" {
 
 
 resource "coder_agent" "main" {
-  arch            = "arm64"
+  arch            = "amd64"
   os              = "linux"
   startup_script  = <<-EOT
     set -e
@@ -228,11 +228,6 @@ resource "coder_agent" "main" {
     }
     install_code_extensions </dev/null >/home/coder/.log/install-code-extensions.log 2>&1 &
 
-    # Join the EasyTier mesh so the workspace can reach coder.hitosea.com
-    if ! pgrep -x easytier-core >/dev/null 2>&1; then
-      sudo nohup easytier-core --hostname $${CODER_WORKSPACE_OWNER_NAME}/$${HOSTNAME} --network-name hitosea --network-secret ajax9999 -d -p tcp://coder.hitosea.com:11010 >/home/coder/.log/easytier-core.log 2>&1 &
-    fi
-
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
@@ -268,7 +263,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
     WORKSPACE_IMAGE_KEY = local.workspace_effective_image_key
-    ARCH                = "arm64"
+    ARCH                = "amd64"
   }
 
   metadata {

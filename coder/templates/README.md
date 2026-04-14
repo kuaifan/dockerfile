@@ -3,10 +3,10 @@ display_name: Ubuntu 24.04
 description: 基于 Ubuntu 24.04 的 Sysbox DinD 开发容器。
 icon: ../../../site/static/icon/ubuntu.svg
 verified: true  
-tags: [ubuntu, ubuntu-24.04, docker, dind, sysbox, container, devcontainer, node, arm64]  
+tags: [ubuntu, ubuntu-24.04, docker, dind, sysbox, container, devcontainer, node]  
 ---
 
-Ubuntu 24.04 · Sysbox DinD 开发环境（arm64）
+Ubuntu 24.04 · Sysbox DinD 开发环境
 ========================================
 
 基于 Ubuntu 24.04 LTS（noble）的 Dev Container，使用 Sysbox 运行时提供安全的 Docker-in-Docker（DinD），无需特权模式。
@@ -14,7 +14,7 @@ Ubuntu 24.04 · Sysbox DinD 开发环境（arm64）
 架构
 ----
 
-- 目标架构：**arm64**（`arch = "arm64"`）
+- 目标架构：**amd64**（`arch = "amd64"`）
 
 宿主机前置条件
 --------------
@@ -22,8 +22,8 @@ Ubuntu 24.04 · Sysbox DinD 开发环境（arm64）
 1. **安装 Sysbox**
 
    ```bash
-   wget https://downloads.nestybox.com/sysbox/releases/v0.6.7/sysbox-ce_0.6.7-0.linux_arm64.deb
-   dpkg -i sysbox-ce_0.6.7-0.linux_arm64.deb
+   wget https://downloads.nestybox.com/sysbox/releases/v0.6.7/sysbox-ce_0.6.7-0.linux_amd64.deb
+   dpkg -i sysbox-ce_0.6.7-0.linux_amd64.deb
    ```
 
 2. **创建 Docker 网络**（一次性）
@@ -33,12 +33,9 @@ Ubuntu 24.04 · Sysbox DinD 开发环境（arm64）
    ```
 
 3. **配置插件定时下载**（可选）
-
-   将 `coder/resources/download-code-server-extensions.sh` 放到宿主机 `/home/coder/.code-vsixs/` 目录并设置 cron：
-
    ```bash
    mkdir -p /home/coder/.code-vsixs
-   cp coder/resources/download-code-server-extensions.sh /home/coder/.code-vsixs/
+   wget -O /home/coder/.code-vsixs/download-code-server-extensions.sh https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/download-code-server-extensions.sh
    chmod +x /home/coder/.code-vsixs/download-code-server-extensions.sh
    (crontab -l 2>/dev/null; echo "0 3 * * * /home/coder/.code-vsixs/download-code-server-extensions.sh >> /home/coder/.code-vsixs/download.log 2>&1") | crontab -
    ```
