@@ -211,7 +211,7 @@ resource "coder_script" "cli_setup" {
   script             = <<-EOT
     #!/usr/bin/env bash
     set -e
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/main/coder/resources/cli-setup.sh | python3
   EOT
 }
 

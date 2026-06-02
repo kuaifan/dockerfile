@@ -35,7 +35,7 @@ Ubuntu 24.04 · Sysbox DinD 开发环境
 3. **配置插件定时下载**（可选）
    ```bash
    mkdir -p /home/coder/.code-vsixs
-   wget -O /home/coder/.code-vsixs/download-code-server-extensions.sh https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/download-code-server-extensions.sh
+   wget -O /home/coder/.code-vsixs/download-code-server-extensions.sh https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/main/coder/resources/download-code-server-extensions.sh
    chmod +x /home/coder/.code-vsixs/download-code-server-extensions.sh
    (crontab -l 2>/dev/null; echo "0 3 * * * /home/coder/.code-vsixs/download-code-server-extensions.sh >> /home/coder/.code-vsixs/download.log 2>&1") | crontab -
    ```
