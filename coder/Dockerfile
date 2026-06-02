@@ -23,7 +23,7 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     bash \
     bash-completion \
     build-essential \
-    containerd.io \
+    containerd.io=1.7.28-1~ubuntu.24.04~noble \
     curl \
     docker-ce \
     docker-ce-cli \
@@ -94,6 +94,17 @@ RUN set -eux; \
     corepack prepare pnpm@latest --activate || npm install -g pnpm; \
     apt-get purge -y --auto-remove gnupg; \
     rm -rf /var/lib/apt/lists/*
+
+# Install GitHub CLI (gh) from the official apt repository
+RUN set -eux; \
+    mkdir -p -m 755 /etc/apt/keyrings; \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gh; \
+    rm -rf /var/lib/apt/lists/*; \
+    gh --version
 
 # Install Watchman (official prebuilt binary) — speeds up Metro/Expo file watching on Linux.
 # The apt package (4.9.0) is too old for modern Metro; pin a release that ships a linux zip.
