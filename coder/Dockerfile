@@ -95,6 +95,23 @@ RUN set -eux; \
     apt-get purge -y --auto-remove gnupg; \
     rm -rf /var/lib/apt/lists/*
 
+# Install Watchman (official prebuilt binary) — speeds up Metro/Expo file watching on Linux.
+# The apt package (4.9.0) is too old for modern Metro; pin a release that ships a linux zip.
+ARG WATCHMAN_VERSION=v2026.05.11.00
+RUN set -eux; \
+    cd /tmp; \
+    curl -fSL -o watchman.zip "https://github.com/facebook/watchman/releases/download/${WATCHMAN_VERSION}/watchman-${WATCHMAN_VERSION}-linux.zip"; \
+    unzip -q watchman.zip; \
+    cd "watchman-${WATCHMAN_VERSION}-linux"; \
+    mkdir -p /usr/local/bin /usr/local/lib /usr/local/var/run/watchman; \
+    cp bin/* /usr/local/bin/; \
+    cp -r lib/* /usr/local/lib/; \
+    chmod 755 /usr/local/bin /usr/local/lib; \
+    chmod 2777 /usr/local/var/run/watchman; \
+    ldconfig; \
+    cd /; rm -rf /tmp/watchman.zip "/tmp/watchman-${WATCHMAN_VERSION}-linux"; \
+    watchman --version
+
 # Install Easytier
 RUN curl -fsSL https://raw.githubusercontent.com/EasyTier/EasyTier/main/script/install.sh | bash -s install
 
