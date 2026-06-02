@@ -8,6 +8,24 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      directory:
+        description: "要构建的目录（例如：coder）"
+        required: true
+        type: string
+      version:
+        description: "版本号（覆盖 config.ini 的 imageTag）"
+        required: true
+        type: string
+      force:
+        description: "是否强制构建（覆盖 imageForce；yes=即使镜像已存在也重新构建）"
+        required: true
+        type: choice
+        default: "no"
+        options:
+          - "no"
+          - "yes"
 
 jobs:
   discover:
@@ -54,9 +72,31 @@ jobs:
 
       - name: Collect build targets
         id: collect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_DIR: ${{ github.event.inputs.directory }}
         run: |
           set -euo pipefail
-          bash ./build.sh list >>"$GITHUB_OUTPUT"
+          raw="$(bash ./build.sh list)"
+          base_matrix="$(printf '%s\n' "$raw" | sed -n 's/^base_matrix=//p')"
+          variant_matrix="$(printf '%s\n' "$raw" | sed -n 's/^variant_matrix=//p')"
+          # 手动触发时，仅保留指定目录的构建目标
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::notice::手动触发，仅构建目录 ${FILTER_DIR}"
+            base_matrix="$(printf '%s' "$base_matrix" | jq -c --arg d "$FILTER_DIR" '{include: [.include[] | select(.dir == $d)]}')"
+            variant_matrix="$(printf '%s' "$variant_matrix" | jq -c --arg d "$FILTER_DIR" '{include: [.include[] | select(.dir == $d)]}')"
+          fi
+          has_base="$(printf '%s' "$base_matrix" | jq -r 'if (.include | length) > 0 then "true" else "false" end')"
+          has_variant="$(printf '%s' "$variant_matrix" | jq -r 'if (.include | length) > 0 then "true" else "false" end')"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$has_base" = "false" ] && [ "$has_variant" = "false" ]; then
+            echo "::warning::目录 ${FILTER_DIR} 下未找到可构建的 Dockerfile，将不会构建任何镜像"
+          fi
+          {
+            echo "base_matrix=$base_matrix"
+            echo "variant_matrix=$variant_matrix"
+            echo "has_base_targets=$has_base"
+            echo "has_variant_targets=$has_variant"
+          } >> "$GITHUB_OUTPUT"
 
   build-base:
     needs: discover
@@ -95,6 +135,29 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Override config (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          DIR: ${{ matrix.dir }}
+          VERSION: ${{ github.event.inputs.version }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+          cfg="${DIR}/config.ini"
+          touch "$cfg"
+          if grep -q '^imageTag=' "$cfg"; then
+            sed -i "s|^imageTag=.*|imageTag=${VERSION}|" "$cfg"
+          else
+            echo "imageTag=${VERSION}" >> "$cfg"
+          fi
+          if grep -q '^imageForce=' "$cfg"; then
+            sed -i "s|^imageForce=.*|imageForce=${FORCE}|" "$cfg"
+          else
+            echo "imageForce=${FORCE}" >> "$cfg"
+          fi
+          echo "::notice::已覆盖 ${cfg}：imageTag=${VERSION} imageForce=${FORCE}"
+          cat "$cfg"
 
       - name: Build and Push
         env:
@@ -143,6 +206,29 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Override config (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          DIR: ${{ matrix.dir }}
+          VERSION: ${{ github.event.inputs.version }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+          cfg="${DIR}/config.ini"
+          touch "$cfg"
+          if grep -q '^imageTag=' "$cfg"; then
+            sed -i "s|^imageTag=.*|imageTag=${VERSION}|" "$cfg"
+          else
+            echo "imageTag=${VERSION}" >> "$cfg"
+          fi
+          if grep -q '^imageForce=' "$cfg"; then
+            sed -i "s|^imageForce=.*|imageForce=${FORCE}|" "$cfg"
+          else
+            echo "imageForce=${FORCE}" >> "$cfg"
+          fi
+          echo "::notice::已覆盖 ${cfg}：imageTag=${VERSION} imageForce=${FORCE}"
+          cat "$cfg"
 
       - name: Build and Push
         env:
