@@ -11,7 +11,7 @@ terraform {
 
 locals {
   workspace_image_base     = "kuaifan/coder"
-  workspace_image_version  = "0.0.2"
+  workspace_image_version  = "0.0.3"
   workspace_image_variants = [
     {
       key        = "default"
@@ -87,6 +87,7 @@ data "coder_parameter" "workspace_image" {
 }
 
 
+# 工作区主代理：负责启动脚本、环境变量及资源监控指标
 resource "coder_agent" "main" {
   arch            = "amd64"
   os              = "linux"
@@ -108,106 +109,13 @@ resource "coder_agent" "main" {
       mkdir -p /home/coder/go
     fi
 
-    # Install coder-server extensions
-    install_code_extensions() {
-      local vsix_base_dir="/home/coder/.code-vsixs"
-      local extensions_dir="/home/coder/.code-extensions"
-      local env_key="$${WORKSPACE_IMAGE_KEY:-default}"
-      local delay=1
-      local max_attempts=300
-
-      if [ ! -d "$${vsix_base_dir}" ]; then
-        return
-      fi
-      mkdir -p "$${extensions_dir}"
-
-      # Wait for code-server to be available
-      local attempt
-      for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-        if command -v code-server >/dev/null 2>&1; then
-          echo "code-server detected after $${attempt} attempt(s)."
-          sleep 5
-          break
-        fi
-        echo "Waiting for code-server installation... attempt $${attempt}/$${max_attempts}"
-        sleep "$${delay}"
-      done
-
-      if ! command -v code-server >/dev/null 2>&1; then
-        echo "code-server unavailable after $$(($${max_attempts} * $${delay})) seconds; skipping extension installation."
-        return
-      fi
-
-      # Function to install extensions from a directory
-      install_from_dir() {
-        local dir="$1"
-        local dir_name=$(basename "$${dir}")
-
-        if [ ! -d "$${dir}" ]; then
-          echo "Directory $${dir} does not exist, skipping."
-          return
-        fi
-
-        local vsix_files=("$${dir}"/*.vsix)
-        if [ "$${vsix_files[0]}" = "$${dir}/*.vsix" ]; then
-          echo "No VSIX files found in $${dir}, skipping."
-          return
-        fi
-
-        echo "Installing extensions from $${dir_name}..."
-        local vsix
-        for vsix in "$${vsix_files[@]}"; do
-          [ -f "$${vsix}" ] || continue
-
-          local vsix_name=$(basename "$${vsix}")
-          local installed_marker="$${extensions_dir}/.installed_$${vsix_name}"
-
-          if [ -f "$${installed_marker}" ]; then
-            echo "  Skipping $${vsix_name} (already installed previously)."
-            continue
-          fi
-
-          echo "  Installing $${vsix_name}..."
-          if code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
-            touch "$${installed_marker}"
-            echo "  Successfully installed $${vsix_name}."
-          else
-            echo "  Failed to install $${vsix_name}."
-          fi
-        done
-      }
-
-      # Install common extensions first
-      install_from_dir "$${vsix_base_dir}/common"
-
-      # Install environment-specific extensions (skip for default environment)
-      if [ "$${env_key}" = "pgp" ]; then
-        # Combined environment pulls PHP + Go + Python extensions
-        for lang_dir in php golang python; do
-          install_from_dir "$${vsix_base_dir}/$${lang_dir}"
-        done
-      elif [ "$${env_key}" != "default" ]; then
-        install_from_dir "$${vsix_base_dir}/$${env_key}"
-      fi
-
-      echo "Extension installation completed for environment: $${env_key}"
-    }
-    install_code_extensions </dev/null >/home/coder/.log/install-code-extensions.log 2>&1 &
-
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
     fi
 
-    # Install or update CLI tools (async, non-blocking)
-    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3 >/dev/null 2>&1 &
-
     # 移除过期的 Yarn 源
     sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
-
-    # Ensure specific containerd version is installed to avoid compatibility issues
-    sudo apt-get update
-    sudo apt-get install -y --allow-downgrades containerd.io=1.7.28-1~ubuntu.24.04~noble
 
     # Start Docker first
     sudo service docker start
@@ -215,7 +123,7 @@ resource "coder_agent" "main" {
     # Setup daily docker prune cron job at 5:00 AM (clean dangling images only)
     sudo service cron start
     CRON_JOB="0 5 * * * /usr/bin/docker image prune -f >> /home/coder/.log/docker-prune.log 2>&1"
-    (crontab -l 2>/dev/null | grep -v "docker.*prune" ; echo "$CRON_JOB") | crontab -
+    (crontab -l 2>/dev/null | grep -v "docker.*prune" || true ; echo "$CRON_JOB") | crontab -
   EOT
   shutdown_script = <<-EOT
     set -e
@@ -291,6 +199,113 @@ resource "coder_agent" "main" {
     interval     = 10
     timeout      = 1
   }
+}
+
+# 安装/更新 CLI 工具：后台运行、不阻塞工作区就绪，输出在工作区 UI 的脚本日志中可见
+resource "coder_script" "cli_setup" {
+  agent_id           = coder_agent.main.id
+  display_name       = "CLI 工具安装"
+  icon               = "/icon/terminal.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -e
+    wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/cli-setup.sh | python3
+  EOT
+}
+
+# 安装 code-server 扩展：后台运行、不阻塞工作区就绪，输出在工作区 UI 的脚本日志中可见
+resource "coder_script" "code_extensions" {
+  agent_id           = coder_agent.main.id
+  display_name       = "code-server 扩展安装"
+  icon               = "/icon/code.svg"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    vsix_base_dir="/home/coder/.code-vsixs"
+    extensions_dir="/home/coder/.code-extensions"
+    env_key="$${WORKSPACE_IMAGE_KEY:-default}"
+    delay=1
+    max_attempts=300
+
+    if [ ! -d "$${vsix_base_dir}" ]; then
+      echo "$${vsix_base_dir} not found; skipping extension installation."
+      exit 0
+    fi
+    mkdir -p "$${extensions_dir}"
+
+    # Wait for code-server to be available
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+      if command -v code-server >/dev/null 2>&1; then
+        echo "code-server detected after $${attempt} attempt(s)."
+        sleep 5
+        break
+      fi
+      echo "Waiting for code-server installation... attempt $${attempt}/$${max_attempts}"
+      sleep "$${delay}"
+    done
+
+    if ! command -v code-server >/dev/null 2>&1; then
+      echo "code-server unavailable after $$(($${max_attempts} * $${delay})) seconds; skipping extension installation."
+      exit 0
+    fi
+
+    # Function to install extensions from a directory
+    install_from_dir() {
+      local dir="$1"
+      local dir_name=$(basename "$${dir}")
+
+      if [ ! -d "$${dir}" ]; then
+        echo "Directory $${dir} does not exist, skipping."
+        return
+      fi
+
+      local vsix_files=("$${dir}"/*.vsix)
+      if [ "$${vsix_files[0]}" = "$${dir}/*.vsix" ]; then
+        echo "No VSIX files found in $${dir}, skipping."
+        return
+      fi
+
+      echo "Installing extensions from $${dir_name}..."
+      local vsix
+      for vsix in "$${vsix_files[@]}"; do
+        [ -f "$${vsix}" ] || continue
+
+        local vsix_name=$(basename "$${vsix}")
+        local installed_marker="$${extensions_dir}/.installed_$${vsix_name}"
+
+        if [ -f "$${installed_marker}" ]; then
+          echo "  Skipping $${vsix_name} (already installed previously)."
+          continue
+        fi
+
+        echo "  Installing $${vsix_name}..."
+        if code-server --extensions-dir "$${extensions_dir}" --force --install-extension "$${vsix}"; then
+          touch "$${installed_marker}"
+          echo "  Successfully installed $${vsix_name}."
+        else
+          echo "  Failed to install $${vsix_name}."
+        fi
+      done
+    }
+
+    # Install common extensions first
+    install_from_dir "$${vsix_base_dir}/common"
+
+    # Install environment-specific extensions (skip for default environment)
+    if [ "$${env_key}" = "pgp" ]; then
+      # Combined environment pulls PHP + Go + Python extensions
+      for lang_dir in php golang python; do
+        install_from_dir "$${vsix_base_dir}/$${lang_dir}"
+      done
+    elif [ "$${env_key}" != "default" ]; then
+      install_from_dir "$${vsix_base_dir}/$${env_key}"
+    fi
+
+    echo "Extension installation completed for environment: $${env_key}"
+  EOT
 }
 
 # See https://registry.coder.com/modules/coder/code-server
