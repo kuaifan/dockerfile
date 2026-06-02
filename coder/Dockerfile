@@ -108,8 +108,14 @@ RUN set -eux; \
 
 # Install Watchman (official prebuilt binary) — speeds up Metro/Expo file watching on Linux.
 # The apt package (4.9.0) is too old for modern Metro; pin a release that ships a linux zip.
+# Watchman 官方仅发布 x86_64 二进制，非 amd64 架构（如 arm64）跳过安装。
 ARG WATCHMAN_VERSION=v2026.05.11.00
+ARG TARGETARCH
 RUN set -eux; \
+    if [ "${TARGETARCH:-amd64}" != "amd64" ]; then \
+        echo "Watchman 无 ${TARGETARCH} 预编译版本，跳过安装"; \
+        exit 0; \
+    fi; \
     cd /tmp; \
     curl -fSL -o watchman.zip "https://github.com/facebook/watchman/releases/download/${WATCHMAN_VERSION}/watchman-${WATCHMAN_VERSION}-linux.zip"; \
     unzip -q watchman.zip; \
