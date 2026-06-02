@@ -37,11 +37,6 @@ locals {
       key        = "pgp"
       label      = "PHP + Go + Python 环境"
       version    = format("pgp-%s", local.workspace_image_version)
-    },
-    {
-      key        = "flutter"
-      label      = "Flutter 环境"
-      version    = format("flutter-%s", local.workspace_image_version)
     }
   ]
   workspace_image_options = [
@@ -62,7 +57,6 @@ locals {
     php     = "PS"
     python  = "PY"
     pgp     = "IU"
-    flutter = "IU"
   }
   jetbrains_default_ide = lookup(local.jetbrains_ide_defaults, local.workspace_effective_image_key, "IU")
 }
@@ -112,34 +106,6 @@ resource "coder_agent" "main" {
     fi
     if [ ! -d /home/coder/go ]; then
       mkdir -p /home/coder/go
-    fi
-
-    # Prepare Flutter-specific tooling on persistent storage
-    if [ "$${WORKSPACE_IMAGE_KEY:-}" = "flutter" ]; then
-      if [ ! -x /home/coder/flutter/bin/flutter ]; then
-        sudo rm -rf /home/coder/flutter
-        sudo mkdir -p /home/coder/flutter
-        sudo rsync -a /opt/flutter/ /home/coder/flutter/
-        sudo chown -R coder:coder /home/coder/flutter
-      fi
-      if [ ! -L /opt/flutter ]; then
-        sudo rm -rf /opt/flutter
-        sudo ln -s /home/coder/flutter /opt/flutter
-      fi
-
-      if [ ! -d /home/coder/android-sdk/platforms ]; then
-        sudo rm -rf /home/coder/android-sdk
-        sudo mkdir -p /home/coder/android-sdk
-        sudo rsync -a /opt/android-sdk/ /home/coder/android-sdk/
-        sudo chown -R coder:coder /home/coder/android-sdk
-      fi
-      if [ ! -L /opt/android-sdk ]; then
-        sudo rm -rf /opt/android-sdk
-        sudo ln -s /home/coder/android-sdk /opt/android-sdk
-      fi
-      
-      # Install flutter-runx script
-      wget -qO- https://raw.githubusercontent.com/kuaifan/dockerfile/refs/heads/master/coder/resources/flutter-runx.sh | sudo python3 - install >/dev/null
     fi
 
     # Install coder-server extensions

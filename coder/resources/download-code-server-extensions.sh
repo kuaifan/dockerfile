@@ -73,7 +73,6 @@ declare -a EXTENSION_GROUPS=(
     "Golang|golang|golang.go"
     "PHP|php|bmewburn.vscode-intelephense-client xdebug.php-debug"
     "Python|python|ms-python.python ms-python.vscode-pylance ms-python.black-formatter ms-python.isort"
-    "Flutter|flutter|Dart-Code.dart-code Dart-Code.flutter"
 )
 
 # 提取通用扩展（用于交互模式的默认值）
