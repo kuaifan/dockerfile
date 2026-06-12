@@ -75,6 +75,8 @@ PY
         imageName="kuaifan/${dir}"
         imageTag="latest"
         imageForce="no"
+        variantTagMode="suffix"
+        latestTag=""
 
         # 判断是否存在 config 文件
         if [ -f "$configFile" ]; then
@@ -92,6 +94,14 @@ PY
                     imageForce=${line#*=}
                     continue
                 fi
+                if [[ $line =~ "variantTagMode" ]]; then
+                    variantTagMode=${line#*=}
+                    continue
+                fi
+                if [[ $line =~ "latestTag" ]]; then
+                    latestTag=${line#*=}
+                    continue
+                fi
             done < "$configFile"
         fi
 
@@ -100,7 +110,11 @@ PY
 
         if [ "$dockerfile" != "Dockerfile" ]; then
             variant="${dockerfile%.Dockerfile}"
-            variantTag="${variant}-${imageTag}"
+            if [ "$variantTagMode" = "raw" ]; then
+                variantTag="${variant}"
+            else
+                variantTag="${variant}-${imageTag}"
+            fi
             dockerfileArg=(-f "$dockerfile")
             echo "::notice::检测到变体 Dockerfile ${dockerfile}，目标标签 ${variantTag}"
         else
@@ -130,8 +144,14 @@ PY
         echo "::notice::开始构建镜像 ${imageName}:${variantTag}"
 
         tags=("--tag" "${imageName}:${variantTag}")
+        latestAdded="no"
         if [ "$dockerfile" = "Dockerfile" ] && [ "$variantTag" != "latest" ]; then
             tags+=("--tag" "${imageName}:latest")
+            latestAdded="yes"
+        fi
+        if [ "$latestAdded" = "no" ] && [ -n "$latestTag" ] && [ "$variantTag" = "$latestTag" ] && [ "$variantTag" != "latest" ]; then
+            tags+=("--tag" "${imageName}:latest")
+            echo "::notice::命中 latestTag=${latestTag}，额外标记 ${imageName}:latest"
         fi
 
         if docker buildx build --platform linux/amd64,linux/arm64 "${tags[@]}" "${dockerfileArg[@]}" . --push; then
