@@ -29,7 +29,11 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     docker-ce-cli \
     docker-buildx-plugin \
     docker-compose-plugin \
+    ffmpeg \
     fish \
+    fontconfig \
+    fonts-noto-cjk \
+    fonts-noto-core \
     git \
     git-lfs \
     htop \
