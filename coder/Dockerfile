@@ -25,8 +25,8 @@ RUN add-apt-repository -y ppa:fish-shell/release-4 \
     build-essential \
     containerd.io=1.7.28-1~ubuntu.24.04~noble \
     curl \
-    docker-ce \
-    docker-ce-cli \
+    docker-ce=5:28.5.1-1~ubuntu.24.04~noble \
+    docker-ce-cli=5:28.5.1-1~ubuntu.24.04~noble \
     docker-buildx-plugin \
     docker-compose-plugin \
     ffmpeg \
