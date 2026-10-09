@@ -330,6 +330,17 @@ module "code-server" {
     "window.menuBarVisibility" = "classic"
     "remote.autoForwardPorts" = false
   }
+  machine_settings = {
+    "files.watcherExclude" = {
+      "**/.git/objects/**"        = true
+      "**/.git/subtree-cache/**"  = true
+      "**/node_modules/**"        = true
+      "**/dist/**"                = true
+      "**/.cache/**"              = true
+      "**/.gradle/**"             = true
+      "**/go/pkg/**"              = true
+    }
+  }
 }
 
 # See https://registry.coder.com/modules/coder/cursor
