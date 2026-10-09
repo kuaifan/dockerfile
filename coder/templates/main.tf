@@ -313,22 +313,13 @@ module "code-server" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/code-server/coder"
   version         = "~> 1.0"
-  folder          = "/home/coder/workspaces"
   install_prefix  = "/home/coder/.code-server"
   agent_id        = coder_agent.main.id
   extensions_dir  = "/home/coder/.code-extensions"
   settings        = {
-    "terminal.integrated.defaultProfile.linux" = "fish"
-    "terminal.integrated.profiles.linux" = {
-      "Claude Code": {
-        "path": "claude",
-        "args": [],
-        "icon": "robot"
-      }
-    }
-    "workbench.colorTheme" = "Default Dark Modern"
-    "window.menuBarVisibility" = "classic"
-    "remote.autoForwardPorts" = false
+    "window.menuBarVisibility"    = "classic"
+    "telemetry.telemetryLevel"    = "off"
+    "workbench.enableExperiments" = false
   }
   machine_settings = {
     "files.watcherExclude" = {
@@ -340,6 +331,17 @@ module "code-server" {
       "**/.gradle/**"             = true
       "**/go/pkg/**"              = true
     }
+    "search.exclude" = {
+      "**/vendor"  = true
+      "**/dist"    = true
+      "**/build"   = true
+      "**/target"  = true
+      "**/.next"   = true
+      "**/go/pkg"  = true
+    }
+    "workbench.colorTheme"    = "Default Dark Modern"
+    "remote.autoForwardPorts" = false
+    "search.followSymlinks"   = false
   }
 }
 
