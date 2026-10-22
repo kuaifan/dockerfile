@@ -6,6 +6,10 @@ RUN cd /go/src/dooso && \
     go build -buildmode=c-shared -o lib/doo.so main.go
 
 
+# 镜像 tag 取自本文件名（config.ini: variantTagMode=raw），即 kuaifan/php:swoole-8.4.27
+# 基础镜像 6.2-php8.4 为浮动 tag，构建时（2026-10-22）为 PHP 8.4.27 + Swoole 6.2.3，
+# 已修复 CVE-2026-109618 / CVE-2026-109619（PHP2Shell RCE）；旧 tag swoole-8.4 为 PHP 8.4.21，存在上述漏洞
+# 升级 PHP 补丁版本时：重命名本文件为新版本号，并同步 config.ini 的 latestTag 与 dootask 的 docker-compose.yml
 FROM phpswoole/swoole:6.2-php8.4
 
 # Installation dependencies and PHP core extensions
