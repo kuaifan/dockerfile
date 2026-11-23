@@ -51,7 +51,14 @@ locals {
   workspace_selection_image_key  = trimspace(data.coder_parameter.workspace_image.value)
   workspace_effective_image_key  = local.workspace_selection_image_key != "" ? local.workspace_selection_image_key : local.workspace_default_image_key
   workspace_final_image          = lookup(local.workspace_image_map, local.workspace_effective_image_key, element(local.workspace_image_options, 0).image)
-  jetbrains_ide_defaults = {
+  workspace_memory_options = [
+    for gb in [8, 16, 24, 32, 48] : {
+      key   = tostring(gb)
+      label = format("%d GB", gb)
+    }
+  ]
+  workspace_memory_default = "24"
+  jetbrains_ide_defaults   = {
     default = "IU"
     golang  = "GO"
     php     = "PS"
@@ -82,6 +89,24 @@ data "coder_parameter" "workspace_image" {
     content {
       name  = option.value.name
       value = option.value.value
+    }
+  }
+}
+
+data "coder_parameter" "workspace_memory" {
+  default      = local.workspace_memory_default
+  description  = "容器内存上限（含内嵌 Docker 构建），超出会被 OOM 终止。"
+  display_name = "内存上限"
+  mutable      = true
+  name         = "workspace_memory"
+  type         = "string"
+  form_type    = "dropdown"
+  order        = 1
+  dynamic "option" {
+    for_each = local.workspace_memory_options
+    content {
+      name  = option.value.label
+      value = option.value.key
     }
   }
 }
@@ -425,6 +450,11 @@ resource "docker_container" "workspace" {
   ]
 
   runtime = "sysbox-runc"
+
+  # 内存限制（MB）；memory_swap 与 memory 相等即禁用 swap，避免宿主机 swap 抖动
+  memory             = tonumber(data.coder_parameter.workspace_memory.value) * 1024
+  memory_swap        = tonumber(data.coder_parameter.workspace_memory.value) * 1024
+  memory_reservation = tonumber(data.coder_parameter.workspace_memory.value) * 768
 
   networks_advanced {
     name = data.docker_network.workspace_network.name
