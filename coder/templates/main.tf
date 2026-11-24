@@ -58,6 +58,19 @@ locals {
     }
   ]
   workspace_memory_default = "24"
+  workspace_network_options = [
+    {
+      key   = "docker"
+      label = "Docker 网络（默认）"
+    },
+    {
+      key   = "split"
+      label = "分流网络（SNAT）"
+    }
+  ]
+  workspace_network_default = "docker"
+  workspace_network_mode    = trimspace(data.coder_parameter.workspace_network.value)
+  workspace_network_name    = local.workspace_network_mode == "split" ? "coder-workspace-split" : "coder-workspace-network"
   jetbrains_ide_defaults   = {
     default = "IU"
     golang  = "GO"
@@ -104,6 +117,24 @@ data "coder_parameter" "workspace_memory" {
   order        = 1
   dynamic "option" {
     for_each = local.workspace_memory_options
+    content {
+      name  = option.value.label
+      value = option.value.key
+    }
+  }
+}
+
+data "coder_parameter" "workspace_network" {
+  default      = local.workspace_network_default
+  description  = "默认使用 Docker 网络。选择分流网络后，工作区流量会通过宿主机 SNAT 使用指定的局域网源 IP。"
+  display_name = "工作区网络"
+  mutable      = true
+  name         = "workspace_network"
+  type         = "string"
+  form_type    = "dropdown"
+  order        = 2
+  dynamic "option" {
+    for_each = local.workspace_network_options
     content {
       name  = option.value.label
       value = option.value.key
@@ -436,7 +467,7 @@ resource "docker_volume" "docker_volume" {
 }
 
 data "docker_network" "workspace_network" {
-  name = "coder-workspace-network"
+  name = local.workspace_network_name
 }
 
 resource "docker_container" "workspace" {
