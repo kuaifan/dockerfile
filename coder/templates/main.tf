@@ -220,6 +220,9 @@ resource "coder_agent" "main" {
       mkdir -p /home/coder/go
     fi
 
+    # npm 全局包默认安装到持久化的 ~/.local（可执行文件在 ~/.local/bin），无需 sudo，重建容器后仍保留
+    npm config set prefix /home/coder/.local || true
+
     # Install oh-my-bash if not installed
     if [ ! -d /home/coder/.oh-my-bash ]; then
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)"
