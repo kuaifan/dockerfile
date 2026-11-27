@@ -6,6 +6,9 @@ terraform {
     docker = {
       source = "kreuzwerker/docker"
     }
+    external = {
+      source = "hashicorp/external"
+    }
   }
 }
 
@@ -58,19 +61,34 @@ locals {
     }
   ]
   workspace_memory_default = "24"
-  workspace_network_options = [
-    {
-      key   = "docker"
-      label = "Docker 网络（默认）"
-    },
-    {
-      key   = "split"
-      label = "分流网络（SNAT）"
-    }
-  ]
-  workspace_network_default = "docker"
-  workspace_network_mode    = trimspace(data.coder_parameter.workspace_network.value)
-  workspace_network_name    = local.workspace_network_mode == "split" ? "coder-workspace-split" : "coder-workspace-network"
+  # 宿主机上以该前缀开头的 Docker 网络会出现在「工作区网络」下拉框中
+  workspace_network_prefix    = "coder-network-"
+  # 网络上设置该 label 时用作下拉框显示名，否则显示网络名
+  workspace_network_label_key = "coder.label"
+  # 网络名 => 显示名
+  workspace_networks = {
+    for name, label in data.external.workspace_networks.result :
+    name => trimspace(label) != "" ? trimspace(label) : name
+  }
+  workspace_network_names   = sort(keys(local.workspace_networks))
+  # 下拉框中「自定义」选项的值，Docker 网络名不能以下划线开头，不会与真实网络冲突
+  workspace_network_custom  = "__custom__"
+  workspace_network_default = (
+    contains(local.workspace_network_names, "coder-network-default") ? "coder-network-default" :
+    length(local.workspace_network_names) > 0 ? local.workspace_network_names[0] : local.workspace_network_custom
+  )
+  workspace_network_options = concat(
+    [for name in local.workspace_network_names : { name = local.workspace_networks[name], value = name }],
+    [{ name = "自定义", value = local.workspace_network_custom }]
+  )
+  workspace_network_selection = trimspace(data.coder_parameter.workspace_network.value)
+  # 自定义输入可以填完整网络名，也可以只填前缀之后的部分
+  workspace_network_custom_input = trimspace(try(data.coder_parameter.workspace_network_custom[0].value, ""))
+  workspace_network_name = (
+    local.workspace_network_selection != local.workspace_network_custom ? local.workspace_network_selection :
+    startswith(local.workspace_network_custom_input, local.workspace_network_prefix) ? local.workspace_network_custom_input :
+    "${local.workspace_network_prefix}${local.workspace_network_custom_input}"
+  )
   jetbrains_ide_defaults   = {
     default = "IU"
     golang  = "GO"
@@ -124,21 +142,58 @@ data "coder_parameter" "workspace_memory" {
   }
 }
 
+# 列出宿主机上匹配前缀的 Docker 网络，输出 {"网络名": "label"}（external 只接受字符串到字符串的映射）
+data "external" "workspace_networks" {
+  program = ["sh", "-c", <<-EOT
+    set -eu
+    networks=$(docker network ls --format '{{.Name}}\t{{.Label "${local.workspace_network_label_key}"}}')
+    printf '%s\n' "$networks" | awk -F '\t' -v prefix='${local.workspace_network_prefix}' '
+      function json(s) {
+        gsub(/[[:cntrl:]]/, "", s)
+        gsub(/\\/, "\\\\", s)
+        gsub(/"/, "\\\"", s)
+        return "\"" s "\""
+      }
+      BEGIN { printf "{"; n = 0 }
+      $1 != "" && index($1, prefix) == 1 { printf "%s%s:%s", (n++ ? "," : ""), json($1), json($2) }
+      END { print "}" }
+    '
+  EOT
+  ]
+}
+
 data "coder_parameter" "workspace_network" {
   default      = local.workspace_network_default
-  description  = "默认使用 Docker 网络。选择分流网络后，工作区流量会通过宿主机 SNAT 使用指定的局域网源 IP。"
+  description  = "工作区加入的 Docker 网络。"
   display_name = "工作区网络"
   mutable      = true
   name         = "workspace_network"
   type         = "string"
   form_type    = "dropdown"
   order        = 2
+  # 用一个有序列表生成全部选项：网络按名称排序，「自定义」固定在最后
   dynamic "option" {
     for_each = local.workspace_network_options
     content {
-      name  = option.value.label
-      value = option.value.key
+      name  = option.value.name
+      value = option.value.value
     }
+  }
+}
+
+# 选择「自定义」时出现，用于填写下拉框中没有的网络（例如模板发布后新建的网络）
+data "coder_parameter" "workspace_network_custom" {
+  count        = local.workspace_network_selection == local.workspace_network_custom ? 1 : 0
+  description  = "填写网络名，可省略 ${local.workspace_network_prefix} 前缀。"
+  display_name = "自定义网络"
+  mutable      = true
+  name         = "workspace_network_custom"
+  type         = "string"
+  order        = 3
+  validation {
+    # 允许空值，避免刚选「自定义」时就报错；未填写时由必填检查拦下
+    regex = "^([a-zA-Z0-9][a-zA-Z0-9_.-]*)?$"
+    error = "网络名只能包含字母、数字、点、下划线和中划线，且以字母或数字开头。"
   }
 }
 
@@ -468,6 +523,21 @@ resource "docker_volume" "docker_volume" {
 
 data "docker_network" "workspace_network" {
   name = local.workspace_network_name
+
+  lifecycle {
+    precondition {
+      condition     = length(local.workspace_network_names) > 0
+      error_message = "宿主机上没有以 ${local.workspace_network_prefix} 开头的 Docker 网络，请先创建，例如：docker network create ${local.workspace_network_prefix}default"
+    }
+    precondition {
+      condition     = local.workspace_network_selection != local.workspace_network_custom || local.workspace_network_custom_input != ""
+      error_message = "请填写自定义网络名。"
+    }
+    precondition {
+      condition     = contains(local.workspace_network_names, local.workspace_network_name)
+      error_message = "网络 \"${local.workspace_network_name}\" 不存在，可选网络：${join(", ", local.workspace_network_names)}"
+    }
+  }
 }
 
 resource "docker_container" "workspace" {

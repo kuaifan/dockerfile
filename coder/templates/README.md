@@ -26,11 +26,17 @@ Ubuntu 24.04 · Sysbox DinD 开发环境
    dpkg -i sysbox-ce_0.6.7-0.linux_amd64.deb
    ```
 
-2. **创建 Docker 网络**（一次性，默认模式）
+2. **创建 Docker 网络**（一次性）
 
    ```bash
-   docker network create coder-workspace-network
+   docker network create --label coder.label="默认网络" coder-network-default
    ```
+
+   「工作区网络」下拉框会自动列出宿主机上所有以 `coder-network-` 开头的 Docker 网络。下拉框优先显示网络的 `coder.label` 标签，没有这个标签就显示网络名。存在 `coder-network-default` 时它是默认选项。没有匹配的网络时，工作区无法创建或启动。
+
+   > 模板通过 `docker network ls` 获取网络列表，所以 Coder provisioner 运行环境里必须装有 `docker` CLI，并且能连上宿主机的 Docker（挂载 `/var/run/docker.sock` 或设置 `DOCKER_HOST`）。
+
+   > 下拉框中的网络列表在发布模板时生成。新建的网络可以先通过「自定义」填写网络名使用，重新发布模板后才会出现在下拉框中。
 
 3. **创建分流网络**（可选，一次性）
 
@@ -41,21 +47,18 @@ Ubuntu 24.04 · Sysbox DinD 开发环境
      --driver bridge \
      --subnet=172.31.0.0/24 \
      --gateway=172.31.0.1 \
-     coder-workspace-split
+     --label coder.label="办公线路" \
+     -o com.docker.network.host_ipv4=192.168.101.24 \
+     coder-network-office
    ```
 
-   选择“分流网络（SNAT）”后，工作区会加入 `coder-workspace-split`。宿主机需要提前配置 SNAT，把该网络的流量转换为指定的局域网源 IP（例如 `192.168.101.24`），路由器即可按这个源 IP 分流。Coder Agent 仍通过普通 Docker 网络工作，不会受到 macvlan 的宿主机隔离影响。
+   工作区选择这个网络（下拉框显示为“办公线路”）后，就会加入 `coder-network-office`。`com.docker.network.host_ipv4` 让 Docker 把该网络出宿主机的流量 SNAT 成指定的局域网源 IP（这里是 `192.168.101.24`），路由器即可按这个源 IP 分流。SNAT 规则由 Docker 自己生成和维护，Docker 或宿主机重启后自动恢复。
 
-   示例（宿主机网卡为 `ens160`，分流源 IP 为 `192.168.101.24`）：
+   `192.168.101.24` 必须是宿主机已配置的静态地址，并从路由器 DHCP 地址池中排除。地址不存在时，这个网络里的工作区无法访问外网。
 
-   ```bash
-   sudo sysctl -w net.ipv4.ip_forward=1
-   sudo iptables -t nat -I POSTROUTING 1 \
-     -s 172.31.0.0/24 -o ens160 \
-     -j SNAT --to-source 192.168.101.24
-   ```
+   验证：`sudo iptables -t nat -S POSTROUTING | grep 172.31.0.0` 应该看到 `-j SNAT --to-source 192.168.101.24`。
 
-   `192.168.101.24` 必须是宿主机已配置的静态地址，并从路由器 DHCP 地址池中排除。SNAT 和转发规则需要在宿主机上持久化，避免重启后失效。
+   > 网络选项创建后不能修改。已有网络要改源 IP 时，先停掉使用它的工作区，然后执行 `docker network rm`，再用同名、同标签重建。模板按网络名引用，所以不用重新发布模板。
 
 4. **配置插件定时下载**（可选）
    ```bash
