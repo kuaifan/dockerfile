@@ -16,6 +16,8 @@ LOCAL_BIN = os.path.join(LOCAL_PREFIX, "bin")
 # npm 全局包安装到 ~/.local：可执行文件在 ~/.local/bin，模块在 ~/.local/lib/node_modules
 NPM_ENV = {**os.environ, "NPM_CONFIG_PREFIX": LOCAL_PREFIX}
 
+HAPPY_CREDENTIALS = "/home/coder/.happy-next/access.key"
+
 NAME_WIDTH = 16
 ERROR_TAIL_LINES = 10
 
@@ -164,14 +166,31 @@ def setup_codex():
     return ok
 
 
+def happy_daemon_log():
+    """返回最新一份 happy daemon 日志的内容，取不到时返回 None。"""
+    r = run(f"{local_bin('happy')} daemon logs")
+    path = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+    if r.returncode != 0 or not os.path.isfile(path):
+        return None
+    try:
+        with open(path, errors="replace") as f:
+            return f"日志：{path}\n" + "".join(f.readlines()[-ERROR_TAIL_LINES + 1:])
+    except Exception:
+        return None
+
+
 def setup_happy():
     ok, usable = setup_npm_package("happy-next-cli", "happy-next-cli")
     if not usable:
         return ok
     started = time.time()
+    # 未登录时 daemon 会在后台直接退出，happy 要等满 10 秒才报失败，这里提前跳过
+    if not os.path.isfile(HAPPY_CREDENTIALS):
+        report("happy daemon", "!", "未登录，跳过启动（请执行 happy auth login）", started)
+        return ok
     d = run(f"{local_bin('happy')} daemon start")
     if d.returncode != 0:
-        report("happy daemon", "✗", "启动失败", started, error_output(d))
+        report("happy daemon", "✗", "启动失败", started, happy_daemon_log() or error_output(d))
         return False
     report("happy daemon", "✓", "已启动", started)
     return ok
